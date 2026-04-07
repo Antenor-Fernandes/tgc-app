@@ -1184,7 +1184,20 @@ async function ghFetch(){
     const j=await r.json();
     ghSHA=j.sha;
     try{localStorage.setItem('cadastroIR_ghSHA',ghSHA);}catch(e){}
-    if(j.encoding==='none'||!j.content){return await ghFetchRaw();}
+    // Arquivo grande: API não retorna conteúdo inline — usa download_url pré-autenticado
+    if(j.encoding==='none'||!j.content){
+      if(j.download_url){
+        try{
+          const dr=await fetchComTimeout(j.download_url,{cache:'no-store'},20000);
+          if(!dr.ok){_ghLastError=`Download HTTP ${dr.status}`;return await ghFetchRaw();}
+          const parsed=await dr.json();
+          if(Array.isArray(parsed.access))accessList=parsed.access;
+          _ghLastError=null;
+          return parsed;
+        }catch(e){_ghLastError=e.name==='AbortError'?'Timeout download':e.message;}
+      }
+      return await ghFetchRaw();
+    }
     const parsed=JSON.parse(decodeURIComponent(escape(atob(j.content.replace(/\n/g,'')))));
     if(Array.isArray(parsed.access))accessList=parsed.access;
     _ghLastError=null; // sucesso
@@ -1203,7 +1216,20 @@ async function ghFetchRaw(){
         const j=await r.json();
         ghSHA=j.sha;
         try{localStorage.setItem('cadastroIR_ghSHA',ghSHA);}catch(e){}
-        if(j.encoding==='none'||!j.content){throw new Error('large-file');}
+        if(j.encoding==='none'||!j.content){
+          if(j.download_url){
+            try{
+              const dr=await fetchComTimeout(j.download_url,{cache:'no-store'},20000);
+              if(dr.ok){
+                const parsed=await dr.json();
+                if(Array.isArray(parsed.access))accessList=parsed.access;
+                _ghLastError=null;
+                return parsed;
+              }
+            }catch(e2){}
+          }
+          throw new Error('large-file-sem-download');
+        }
         const parsed=JSON.parse(decodeURIComponent(escape(atob(j.content.replace(/\n/g,'')))));
         if(Array.isArray(parsed.access))accessList=parsed.access;
         _ghLastError=null;
