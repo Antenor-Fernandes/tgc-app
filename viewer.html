@@ -1166,6 +1166,7 @@ function fetchComTimeout(url,opts={},ms=8000){
   const t=setTimeout(()=>ac.abort(),ms);
   return fetch(url,{...opts,signal:ac.signal}).finally(()=>clearTimeout(t));
 }
+let _ghLastError=null; // armazena último erro da API para diagnóstico
 async function ghFetch(){
   if(!ghCfg?.owner||!ghCfg?.repo)return null;
   const url=`https://api.github.com/repos/${ghCfg.owner}/${ghCfg.repo}/contents/data.json`;
@@ -1176,6 +1177,7 @@ async function ghFetch(){
   try{
     const r=await fetchComTimeout(url,{headers,cache:'no-store'},8000);
     if(!r.ok){
+      _ghLastError=`API HTTP ${r.status}`;
       // API falhou (rate limit, etc.) — tenta via raw como fallback
       return await ghFetchRaw();
     }
@@ -1185,8 +1187,9 @@ async function ghFetch(){
     if(j.encoding==='none'||!j.content){return await ghFetchRaw();}
     const parsed=JSON.parse(decodeURIComponent(escape(atob(j.content.replace(/\n/g,'')))));
     if(Array.isArray(parsed.access))accessList=parsed.access;
+    _ghLastError=null; // sucesso
     return parsed;
-  }catch(e){return await ghFetchRaw();}
+  }catch(e){_ghLastError=e.name==='AbortError'?'Timeout (8s)':e.message;return await ghFetchRaw();}
 }
 async function ghFetchRaw(){
   // Repositório privado: sempre usa a API autenticada como fallback
@@ -1203,9 +1206,10 @@ async function ghFetchRaw(){
         if(j.encoding==='none'||!j.content){throw new Error('large-file');}
         const parsed=JSON.parse(decodeURIComponent(escape(atob(j.content.replace(/\n/g,'')))));
         if(Array.isArray(parsed.access))accessList=parsed.access;
+        _ghLastError=null;
         return parsed;
-      }
-    }catch(e){}
+      }else{_ghLastError=`Raw-API HTTP ${r.status}`;}
+    }catch(e){_ghLastError=e.name==='AbortError'?'Timeout raw-api':e.message;}
   }
   // Fallback via raw URL autenticada (suporta arquivos grandes e repos privados)
   if(!ghCfg?.owner||!ghCfg?.repo)return null;
@@ -1214,14 +1218,14 @@ async function ghFetchRaw(){
     const rawUrl=`https://raw.githubusercontent.com/${ghCfg.owner}/${ghCfg.repo}/${branch}/data.json?t=${Date.now()}`;
     const rawHeaders={};if(fallbackToken)rawHeaders['Authorization']=`token ${fallbackToken}`;
     const r=await fetchComTimeout(rawUrl,{headers:rawHeaders,cache:'no-store'},15000);
-    if(!r.ok)return null;
+    if(!r.ok){_ghLastError=`Raw HTTP ${r.status}`;return null;}
     const parsed=await r.json();
     if(Array.isArray(parsed.access))accessList=parsed.access;
-    // Armazena token de escrita compartilhado para colaboradores
     // Recupera SHA do localStorage se disponível (para saves futuros)
     if(!ghSHA){try{const s=localStorage.getItem('cadastroIR_ghSHA');if(s)ghSHA=s;}catch(e){}}
+    _ghLastError=null;
     return parsed;
-  }catch(e){return null;}
+  }catch(e){_ghLastError=e.name==='AbortError'?'Timeout raw':e.message;return null;}
 }
 function getWriteToken(){
   // Admin usa ghCfg.token; colaboradores usam ghCfg.writeToken (configurado localmente no ⚙️)
@@ -4093,7 +4097,8 @@ async function syncDados(silencioso=false){
       refreshCurrentView();
       if(!silencioso) showToast('✅ Dados atualizados!','success');
     } else {
-      if(!silencioso) showToast('⚠️ Não foi possível conectar ao servidor','error');
+      const detalhe=_ghLastError?` (${_ghLastError})`:'';
+      if(!silencioso) showToast(`⚠️ Não foi possível carregar os dados${detalhe}`,'error');
     }
   }catch(e){
     if(!silencioso) showToast('⚠️ Erro ao sincronizar: '+e.message,'error');
