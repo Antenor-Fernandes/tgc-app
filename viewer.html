@@ -375,6 +375,7 @@ body.exercicios-level .full-edit-only{display:none!important}
       <div class="topbar-sep"></div>
       <span id="user-badge" class="user-badge" style="display:none" onclick="openUserOptions()"></span>
       <button class="btn btn-ghost btn-sm" id="btn-equipe" onclick="openUserManager()" title="Gerenciar Equipe" style="display:none">👥</button>
+      <button class="btn btn-ghost btn-sm" id="btn-sync" onclick="syncDados()" title="Buscar dados mais recentes do servidor" style="color:var(--accent);flex-shrink:0">🔄 Sincronizar</button>
       <button class="btn btn-ghost btn-sm edit-only" onclick="openGHConfigViewer()" id="gh-config-btn" title="Configurar token de leitura" style="color:var(--text3)">🔑 Token</button>
     </div>
     <!-- Linha 2: Novo Cliente + filtros agrupados -->
@@ -1077,6 +1078,19 @@ function loadGHCfg(){
     const h=new URLSearchParams(window.location.hash.slice(1)).get('gh');
     if(h){const[o,r]=h.split('/');ghCfg={owner:o,repo:r,token:null};}
   }catch(e){}
+  // 1b. Aceita token de leitura via hash: viewer.html#readtoken=ghp_xxx
+  // Salva no localStorage para que não precise ser informado novamente
+  try{
+    const params=new URLSearchParams(window.location.hash.slice(1));
+    const hashToken=params.get('readtoken');
+    if(hashToken){
+      const saved=JSON.parse(localStorage.getItem(GH_CFG_KEY)||'{}');
+      saved.readToken=hashToken;
+      localStorage.setItem(GH_CFG_KEY,JSON.stringify(saved));
+      // Limpa o hash da URL para não expor o token no histórico do browser
+      history.replaceState(null,'',window.location.pathname+window.location.search);
+    }
+  }catch(e){}
   // 2. Viewer usa token read-only embutido (se preenchido)
   if(VIEWER_MODE){
     const savedCfg = (() => {try{return JSON.parse(localStorage.getItem(GH_CFG_KEY));}catch(e){return null;}})();
@@ -1197,7 +1211,7 @@ async function ghFetchRaw(){
   if(!ghCfg?.owner||!ghCfg?.repo)return null;
   try{
     const branch=ghCfg.branch||'main';
-    const rawUrl=`https://raw.githubusercontent.com/${ghCfg.owner}/${ghCfg.repo}/${branch}/data.json`;
+    const rawUrl=`https://raw.githubusercontent.com/${ghCfg.owner}/${ghCfg.repo}/${branch}/data.json?t=${Date.now()}`;
     const rawHeaders={};if(fallbackToken)rawHeaders['Authorization']=`token ${fallbackToken}`;
     const r=await fetchComTimeout(rawUrl,{headers:rawHeaders,cache:'no-store'},15000);
     if(!r.ok)return null;
@@ -1952,15 +1966,16 @@ async function init(){
     renderTable(filteredClients);
     populateYearSelects();
   }
-  // VIEWER MODE: se os dados não carregaram, solicita o token automaticamente
+  // VIEWER MODE: se os dados não carregaram, orienta o usuário
   if(VIEWER_MODE && allClients.length === 0){
     const tokenSalvo=(()=>{try{return JSON.parse(localStorage.getItem(GH_CFG_KEY))?.readToken;}catch(e){return null;}})();
     if(!tokenSalvo){
+      // Sem token algum → abre o modal para configurar
       showToast('🔑 Configure o token de acesso para visualizar os dados','info');
       setTimeout(()=>openGHConfigViewer(),800);
     }else{
-      showToast('⚠️ Token inválido ou expirado. Reconfigure via botão 🔑 Token.','error');
-      setTimeout(()=>openGHConfigViewer(),800);
+      // Token já salvo mas dados não carregaram → pode ser rede/rate limit, não pede o token de novo
+      showToast('⚠️ Não foi possível carregar os dados. Verifique sua conexão e tente 🔄 Sincronizar.','error');
     }
   }
   // Mostra dica de configuração se GitHub ainda não foi configurado
@@ -4053,6 +4068,42 @@ window.addEventListener('beforeunload',e=>{
 });
 
 init();
+
+// ── SINCRONIZAÇÃO DE DADOS ────────────────────────────────────────────────────
+// Busca dados frescos do GitHub, limpa o cache IndexedDB e atualiza a UI.
+let _syncBusy = false;
+async function syncDados(silencioso=false){
+  if(_syncBusy) return;
+  _syncBusy = true;
+  const btn = document.getElementById('btn-sync');
+  if(btn){ btn.textContent='⏳ Sincronizando…'; btn.disabled=true; }
+  try{
+    const ghData = await ghFetch();
+    if(ghData){
+      allClients = ghData.clientes||[];
+      allLotes   = ghData.lotes||[];
+      // Atualiza IndexedDB com os dados frescos
+      try{
+        for(const c of allClients) await dbPut('clientes',c);
+        for(const l of allLotes)   await dbPut('lotes',l);
+      }catch(e){}
+      if(Array.isArray(ghData.access)&&ghData.access.length>0) accessList=ghData.access;
+      allClients.sort((a,b)=>(a.nome||'').localeCompare(b.nome||'','pt-BR'));
+      allLotes.sort((a,b)=>{const pd=s=>{const[d,m,y]=s.split('/');return new Date(y,m-1,d)};return pd(b.data)-pd(a.data);});
+      refreshCurrentView();
+      if(!silencioso) showToast('✅ Dados atualizados!','success');
+    } else {
+      if(!silencioso) showToast('⚠️ Não foi possível conectar ao servidor','error');
+    }
+  }catch(e){
+    if(!silencioso) showToast('⚠️ Erro ao sincronizar: '+e.message,'error');
+  }finally{
+    _syncBusy = false;
+    if(btn){ btn.textContent='🔄 Sincronizar'; btn.disabled=false; }
+  }
+}
+// Auto-refresh silencioso a cada 10 minutos enquanto a aba estiver aberta
+setInterval(()=>syncDados(true), 10 * 60 * 1000);
 
 // ── AUTO-ATUALIZAÇÃO: detecta nova versão do viewer.html no GitHub ─────────────
 // Compara o SHA do arquivo no GitHub com o SHA que estava no momento do carregamento.
