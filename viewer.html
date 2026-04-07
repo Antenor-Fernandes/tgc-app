@@ -1211,17 +1211,21 @@ async function ghFetchRaw(){
       }else{_ghLastError=`Raw-API HTTP ${r.status}`;}
     }catch(e){_ghLastError=e.name==='AbortError'?'Timeout raw-api':e.message;}
   }
-  // Fallback via raw URL autenticada (suporta arquivos grandes e repos privados)
+  // Fallback via raw URL — SEM Authorization header (raw.githubusercontent.com não suporta
+  // CORS preflight com credenciais; use só para repos públicos)
   if(!ghCfg?.owner||!ghCfg?.repo)return null;
+  if(fallbackToken){
+    // Repositório privado: raw URL não funciona com auth (CORS). Não tenta.
+    _ghLastError=_ghLastError||'Repo privado: somente API suportada';
+    return null;
+  }
   try{
     const branch=ghCfg.branch||'main';
     const rawUrl=`https://raw.githubusercontent.com/${ghCfg.owner}/${ghCfg.repo}/${branch}/data.json?t=${Date.now()}`;
-    const rawHeaders={};if(fallbackToken)rawHeaders['Authorization']=`token ${fallbackToken}`;
-    const r=await fetchComTimeout(rawUrl,{headers:rawHeaders,cache:'no-store'},15000);
+    const r=await fetchComTimeout(rawUrl,{cache:'no-store'},15000);
     if(!r.ok){_ghLastError=`Raw HTTP ${r.status}`;return null;}
     const parsed=await r.json();
     if(Array.isArray(parsed.access))accessList=parsed.access;
-    // Recupera SHA do localStorage se disponível (para saves futuros)
     if(!ghSHA){try{const s=localStorage.getItem('cadastroIR_ghSHA');if(s)ghSHA=s;}catch(e){}}
     _ghLastError=null;
     return parsed;
