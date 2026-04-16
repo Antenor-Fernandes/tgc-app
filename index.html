@@ -4340,16 +4340,21 @@ function imprimirLotesView(){
     if(!content)return;
     const topBtn=document.getElementById('scroll-top-btn');
     const botBtn=document.getElementById('scroll-bot-btn');
+    if(!topBtn||!botBtn)return;
     function update(){
+      const scrollable=content.scrollHeight>content.clientHeight+40;
       const atTop=content.scrollTop<80;
       const atBot=content.scrollTop+content.clientHeight>=content.scrollHeight-80;
-      topBtn.classList.toggle('visible',!atTop);
-      botBtn.classList.toggle('visible',!atBot);
+      topBtn.classList.toggle('visible',scrollable&&!atTop);
+      botBtn.classList.toggle('visible',scrollable&&!atBot);
     }
     content.addEventListener('scroll',update,{passive:true});
-    const mo=new MutationObserver(update);
-    mo.observe(content,{childList:true,subtree:false});
-    update();
+    // subtree:true garante que mudanças de view (abertura de detalhe etc.) disparam update
+    const mo=new MutationObserver(()=>setTimeout(update,80));
+    mo.observe(content,{childList:true,subtree:true});
+    // ResizeObserver cobre redimensionamento de janela
+    if(window.ResizeObserver){new ResizeObserver(()=>setTimeout(update,80)).observe(content);}
+    setTimeout(update,400);
   }
   if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',initScrollBtns);}
   else{setTimeout(initScrollBtns,300);}
