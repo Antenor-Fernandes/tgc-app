@@ -67,7 +67,7 @@ tbody tr{border-bottom:1px solid var(--border);transition:background .1s;cursor:
 tbody tr:last-child{border-bottom:none}
 tbody tr:hover{background:rgba(79,138,255,.04)}
 td{padding:10px 14px;font-size:13px}
-.td-doc{font-family:'DM Mono',monospace;font-size:14px;color:var(--text2);font-weight:500;letter-spacing:.3px}
+.td-doc{font-family:'DM Mono',monospace;font-size:17px;color:var(--text2);font-weight:500;letter-spacing:.3px}
 .td-name{font-weight:500}
 .badge{display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:20px;font-size:10.5px;font-weight:700}
 .badge-pf{background:rgba(79,138,255,.12);color:var(--accent)}
@@ -1504,7 +1504,7 @@ let allClients=[], allLotes=[], filteredClients=[], currentFilter='TODOS';
 // Multi-filtro: activeFilters é um Set com os filtros do grupo2 ativos
 let activeFilters=new Set();
 let editingId=null, detailId=null, exEditId=null, exEditYear=null, currentView='lista';
-let prevView='lista', prevDeclStatus=null; // rastreia origem ao abrir detalhe
+let prevView='lista', prevDeclStatuses=new Set(); // rastreia origem ao abrir detalhe
 
 // ── ACCESS CONTROL STATE ──────────────────────────────────────────────────────
 // currentUser: null | 'admin' | {id, nome, codigo, nivel}
@@ -1889,11 +1889,11 @@ async function init(){
 }
 
 // ── VIEWS ─────────────────────────────────────────────────────────────────────
-let currentDeclStatus=null;
+let currentDeclStatuses=new Set();
 let currentDeclYear=null;
 function goBack(){
-  if(prevView==='decl'&&prevDeclStatus){
-    currentDeclStatus=prevDeclStatus;
+  if(prevView==='decl'&&prevDeclStatuses.size){
+    currentDeclStatuses=new Set(prevDeclStatuses);
     showView('decl');
     renderDecl();
   } else {
@@ -1906,19 +1906,26 @@ function showView(v){
   document.querySelectorAll('.nav-item').forEach(el=>el.classList.remove('active'));
   const el=document.getElementById('view-'+v);
   if(el)el.style.display='block';
-  // Determina qual nav-item deve ficar ativo
-  let navId;
-  if(v==='detalhe') navId=(prevView==='decl'&&prevDeclStatus)?prevDeclStatus:'lista';
-  else if(v==='decl') navId=currentDeclStatus;
-  else navId=v;
-  const navEl=document.getElementById('nav-'+navId);
-  if(navEl)navEl.classList.add('active');
+  // Determina qual(is) nav-item(s) deve(m) ficar ativo(s)
+  if(v==='detalhe'){
+    const set=(prevView==='decl'&&prevDeclStatuses.size)?prevDeclStatuses:new Set(['lista']);
+    set.forEach(s=>{const e=document.getElementById('nav-'+s);if(e)e.classList.add('active');});
+  } else if(v==='decl'){
+    currentDeclStatuses.forEach(s=>{const e=document.getElementById('nav-'+s);if(e)e.classList.add('active');});
+  } else {
+    const navEl=document.getElementById('nav-'+v);
+    if(navEl)navEl.classList.add('active');
+  }
   // topbar sempre visível e completo
   document.getElementById('topbar').style.display='flex';
   if(v==='lotes')renderLotes();
 }
 function showDecl(status){
-  currentDeclStatus=status;
+  if(currentDeclStatuses.has(status)){
+    if(currentDeclStatuses.size>1) currentDeclStatuses.delete(status);
+  } else {
+    currentDeclStatuses.add(status);
+  }
   currentDeclYear=null;
   showView('decl');
   renderDecl();
@@ -2008,16 +2015,23 @@ const DECL_INFO={
   processada:{label:'Processada',dot:'processada',cls:'processada'},
 };
 function renderDecl(){
-  if(!currentDeclStatus)return;
-  const info=DECL_INFO[currentDeclStatus];
-  if(!info)return;
-  // Título da view
-  document.getElementById('decl-view-title').innerHTML=
-    `<span class="status-dot dot-${info.dot}" style="width:10px;height:10px"></span>${info.label}`;
-  // Gera chips de ano com contagem
+  if(!currentDeclStatuses.size)return;
+  // Título da view — único ou múltiplos status
+  if(currentDeclStatuses.size===1){
+    const info=DECL_INFO[[...currentDeclStatuses][0]];
+    document.getElementById('decl-view-title').innerHTML=
+      `<span class="status-dot dot-${info.dot}" style="width:10px;height:10px"></span>${info.label}`;
+  } else {
+    document.getElementById('decl-view-title').innerHTML=
+      [...currentDeclStatuses].map(s=>{
+        const info=DECL_INFO[s];
+        return`<span style="display:inline-flex;align-items:center;gap:3px"><span class="status-dot dot-${info.dot}" style="width:8px;height:8px"></span>${info.label}</span>`;
+      }).join('<span style="color:var(--text3);margin:0 5px;font-size:13px">+</span>');
+  }
+  // Gera chips de ano com contagem (agrega todos os status selecionados)
   const allYears=[...new Set(
     allClients.flatMap(c=>Object.entries(c.exercicios||{})
-      .filter(([,v])=>classifyStatus(v).cls===currentDeclStatus)
+      .filter(([,v])=>currentDeclStatuses.has(classifyStatus(v).cls))
       .map(([yr])=>yr))
   )].sort((a,b)=>b-a);
   const yearChipsEl=document.getElementById('decl-year-chips');
@@ -2036,8 +2050,8 @@ function renderDecl(){
     if(q&&!deacc(c.nome).includes(q)&&!(c.cpfCnpj||'').includes(q))return false;
     if(!c.exercicios)return false;
     const matchFn=currentDeclYear
-      ? ([yr,v])=>yr===currentDeclYear&&classifyStatus(v).cls===currentDeclStatus
-      : ([,v])=>classifyStatus(v).cls===currentDeclStatus;
+      ? ([yr,v])=>yr===currentDeclYear&&currentDeclStatuses.has(classifyStatus(v).cls)
+      : ([,v])=>currentDeclStatuses.has(classifyStatus(v).cls);
     if(!Object.entries(c.exercicios).some(matchFn))return false;
     // aplica filtro de chip (multi-seleção OR ou único)
     if(activeFilters.size>0)return[...activeFilters].some(k=>matchesFilter(c,k));
@@ -2045,21 +2059,24 @@ function renderDecl(){
   });
   document.getElementById('decl-count').textContent=clients.length+' cliente'+(clients.length!==1?'s':'');
   if(!clients.length){
-    document.getElementById('decl-list').innerHTML=`<div class="empty-state"><div class="empty-icon" style="display:flex;justify-content:center"><span class="status-dot dot-${info.dot}" style="width:28px;height:28px"></span></div><div style="margin-top:8px">Nenhum cliente com declaração ${info.label.toLowerCase()}</div></div>`;
+    const _emptyInfo=DECL_INFO[[...currentDeclStatuses][0]]||{dot:'outro',label:'selecionado'};
+    document.getElementById('decl-list').innerHTML=`<div class="empty-state"><div class="empty-icon" style="display:flex;justify-content:center"><span class="status-dot dot-${_emptyInfo.dot}" style="width:28px;height:28px"></span></div><div style="margin-top:8px">Nenhum cliente encontrado</div></div>`;
     return;
   }
   document.getElementById('decl-list').innerHTML=clients.map(c=>{
     const exs=Object.entries(c.exercicios||{})
-      .filter(([yr,st])=>classifyStatus(st).cls===currentDeclStatus&&(!currentDeclYear||yr===currentDeclYear))
+      .filter(([yr,st])=>currentDeclStatuses.has(classifyStatus(st).cls)&&(!currentDeclYear||yr===currentDeclYear))
       .sort((a,b)=>b[0]-a[0]);
-    const dda=currentDeclStatus==='malha';
+    const dda=currentDeclStatuses.has('malha');
+    // badge do cartão usa o status do primeiro exercício ou neutro em multi-seleção
+    const _cardCls=currentDeclStatuses.size===1?[...currentDeclStatuses][0]:(classifyStatus(exs[0]?.[1]||'').cls||'outro');
     return`<div class="malha-panel">
       <div class="malha-panel-hd" onclick="openDetail('${c.id}')" style="cursor:pointer">
         <div style="flex:1;min-width:0">
           <div class="malha-client-name">${statusDots(c)}${c.nome}${clientHasAtencao(c)?'<span style="margin-left:6px;font-size:10px;font-weight:700;color:#d97706;background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.3);border-radius:4px;padding:1px 5px">⚠️ ATENÇÃO</span>':''}</div>
           <div class="malha-doc">${c.cpfCnpj}</div>
         </div>
-        <span class="badge badge-${info.cls}" style="margin-left:8px;flex-shrink:0">${exs.length} exercício${exs.length!==1?'s':''}</span>
+        <span class="badge badge-${_cardCls}" style="margin-left:8px;flex-shrink:0">${exs.length} exercício${exs.length!==1?'s':''}</span>
         ${canEditFields()?`<button class="btn btn-ghost btn-sm edit-only full-edit-only" style="margin-left:8px;flex-shrink:0" onclick="event.stopPropagation();openEdit('${c.id}')">✏️ Editar</button>`:''}
         <button class="btn btn-ghost btn-sm" style="margin-left:4px;flex-shrink:0;color:var(--text3);font-size:11px" onclick="event.stopPropagation();openDetail('${c.id}')" title="Ver cadastro completo">👤 Ver</button>
       </div>
@@ -2075,7 +2092,7 @@ function renderDecl(){
             return d.length>70?d.slice(0,70)+'…':d;
           })();
           const ddaInfo=dda&&c.dda?.[yr]?`<span style="font-size:10px;color:var(--orange);margin-left:6px">${c.dda[yr].feito?'✅ DDA':'⏳ DDA pendente'}</span>`:'';
-          const impugInfo=currentDeclStatus==='impugnacao'&&c.impugnacoes?.[yr]?.data?`<span style="font-size:10px;color:#ec4899;margin-left:6px">⚖️ ${c.impugnacoes[yr].data}</span>`:'';
+          const impugInfo=currentDeclStatuses.has('impugnacao')&&classifyStatus(st).cls==='impugnacao'&&c.impugnacoes?.[yr]?.data?`<span style="font-size:10px;color:#ec4899;margin-left:6px">⚖️ ${c.impugnacoes[yr].data}</span>`:'';
           return`<div class="malha-ex-chip" onclick="openExModal('${c.id}','${yr}')">
             <span class="malha-ex-year">${yr}</span>
             <span class="malha-ex-detail">${det||'—'}${ddaInfo}${impugInfo}</span>
@@ -2911,7 +2928,7 @@ function openDetail(id){
   // salva origem para o botão Voltar
   if(currentView!=='detalhe'){
     prevView=currentView;
-    prevDeclStatus=currentDeclStatus;
+    prevDeclStatuses=new Set(currentDeclStatuses);
   }
   detailId=id;
   const c=allClients.find(x=>x.id===id);
