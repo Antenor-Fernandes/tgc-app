@@ -220,6 +220,8 @@ body.readonly .edit-only{display:none!important}
 
 /* DOENÇA GRAVE + RRA */
 .badge-doenca{background:rgba(220,38,38,.13);color:#dc2626;border:1px solid rgba(220,38,38,.28)}
+.badge-nao_entregue{background:rgba(100,116,139,.15);color:#475569;border:1px solid rgba(100,116,139,.35)}
+.dot-nao_entregue{background:#94a3b8}
 .badge-rra{background:rgba(234,88,12,.13);color:#ea580c;border:1px solid rgba(234,88,12,.28)}
 .tag-doenca{display:inline-flex;align-items:center;gap:3px;background:rgba(220,38,38,.10);border:1px solid rgba(220,38,38,.22);border-radius:5px;padding:2px 7px;font-size:10.5px;font-weight:700;color:#dc2626;white-space:nowrap}
 .tag-rra{display:inline-flex;align-items:center;gap:3px;background:rgba(234,88,12,.10);border:1px solid rgba(234,88,12,.22);border-radius:5px;padding:2px 7px;font-size:10.5px;font-weight:700;color:#ea580c;white-space:nowrap}
@@ -293,13 +295,17 @@ body.readonly .edit-only{display:none!important}
 @keyframes spin{to{transform:rotate(360deg)}}
 @media print{
   .sidebar,.topbar,.no-print{display:none!important}
-  .main{display:block!important;overflow:visible!important}
-  .content{overflow:visible!important;padding:0!important}
+  /* Remove restrições de altura que cortam o conteúdo em 1 página */
+  html,body{height:auto!important;overflow:visible!important}
+  .app{display:block!important;height:auto!important;overflow:visible!important}
+  .main{display:block!important;height:auto!important;overflow:visible!important}
+  .content{overflow:visible!important;height:auto!important;padding:0!important}
   /* Nota: visibilidade dos views é controlada por JS (showView) via inline styles */
-  .rel-layout{display:block}
+  .rel-layout{display:block!important;height:auto!important;overflow:visible!important}
   .rel-panel:first-child{display:none}
-  .rel-table-wrap{border:none;overflow:visible}
+  .rel-table-wrap{border:none;overflow:visible!important;height:auto!important}
   .rel-table{font-size:11pt}
+  .rel-table td,.rel-table th{white-space:nowrap}
   .rel-table thead th{background:#f0f0f0;-webkit-print-color-adjust:exact;print-color-adjust:exact}
   /* Lotes print — expand accordions */
   .lote-body{display:block!important;max-height:none!important}
@@ -484,6 +490,7 @@ body.exercicios-level .full-edit-only{display:none!important}
               <option value="impugnacao">Impugnação</option>
               <option value="impugnar">Impugnar</option>
               <option value="processada">Processada</option>
+              <option value="nao_entregue">🚫 Não Entregue (declaração ausente)</option>
             </select>
           </div>
           <div class="rel-group">
@@ -2013,6 +2020,7 @@ const DECL_INFO={
   impugnacao:{label:'Impugnação',dot:'impugnacao',cls:'impugnacao'},
   impugnar:{label:'Impugnar',dot:'impugnar',cls:'impugnar'},
   processada:{label:'Processada',dot:'processada',cls:'processada'},
+  nao_entregue:{label:'Não Entregue',dot:'nao_entregue',cls:'nao_entregue'},
 };
 function renderDecl(){
   if(!currentDeclStatuses.size)return;
@@ -4038,6 +4046,9 @@ init();
 function showRelatorio(){
   // popula exercícios disponíveis dinamicamente
   const years=new Set();
+  // Inclui o ano corrente mesmo que ninguém tenha declarado ainda (útil p/ filtro "Não Entregue")
+  const anoAtual=String(new Date().getFullYear());
+  years.add(anoAtual);
   allClients.forEach(c=>Object.keys(c.exercicios||{}).forEach(y=>years.add(y)));
   const sel=document.getElementById('rel-exercicio');
   // preserva seleção atual
@@ -4080,7 +4091,14 @@ function gerarRelatorio(){
     if(caract==='PER'&&!clientHasPer(c))return false;
     if(caract==='PROC'&&!clientHasProc(c))return false;
     if(caract==='PERR'&&!clientHasPerAReceber(c))return false;
-    if(status!=='TODOS'){
+    if(status==='nao_entregue'){
+      // Clientes SEM declaração no exercício escolhido (ou sem nenhuma, se "Todos")
+      if(exercicio!=='TODOS'){
+        if(c.exercicios?.[exercicio])return false; // já tem → excluir
+      } else {
+        if(c.exercicios&&Object.keys(c.exercicios).length>0)return false;
+      }
+    } else if(status!=='TODOS'){
       const exs=Object.entries(c.exercicios||{});
       if(exercicio!=='TODOS'){
         const st=c.exercicios?.[exercicio];
@@ -4141,7 +4159,9 @@ function gerarRelatorio(){
   const tbody=lista.map(c=>{
     // exercício de referência
     let exRef='—', stRef='—', stCls='outro';
-    if(exercicio!=='TODOS'&&c.exercicios?.[exercicio]){
+    if(status==='nao_entregue'&&exercicio!=='TODOS'){
+      exRef=exercicio; stRef='Não Entregue'; stCls='nao_entregue';
+    } else if(exercicio!=='TODOS'&&c.exercicios?.[exercicio]){
       exRef=exercicio;
       const cat=classifyStatus(c.exercicios[exercicio]);
       stRef=cat.label;stCls=cat.cls;
@@ -4152,7 +4172,7 @@ function gerarRelatorio(){
     const end=[c.logradouro,c.numeroEnd,c.complemento,c.bairro,c.cidade,c.uf].filter(Boolean).join(', ')||c.endereco||'—';
     let tr='<tr>';
     if(cols.tipo)tr+=`<td><span class="badge badge-${c.tipo.toLowerCase()}">${c.tipo}</span></td>`;
-    if(cols.cpf)tr+=`<td style="font-family:'DM Mono',monospace;font-size:11.5px">${c.cpfCnpj}</td>`;
+    if(cols.cpf)tr+=`<td style="font-family:'DM Mono',monospace;font-size:11.5px;white-space:nowrap">${c.cpfCnpj}</td>`;
     tr+=`<td style="font-weight:500">${c.nome}${c.doencaGrave&&!cols.doenca?' <span class="tag-doenca" style="font-size:10px">🩺</span>':''}</td>`;
     if(cols.exercicio)tr+=`<td style="font-family:'DM Mono',monospace;text-align:center">${exRef}</td>`;
     if(cols.status)tr+=`<td><span class="badge badge-${stCls}">${stRef}</span></td>`;
