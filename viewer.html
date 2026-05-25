@@ -437,6 +437,7 @@ body.exercicios-level .full-edit-only{display:none!important}
     <div style="margin-bottom:14px;display:flex;align-items:center;gap:10px">
       <div style="font-family:'Syne',sans-serif;font-size:16px;font-weight:700">📋 Lotes de Restituição</div>
       <span class="count-badge" id="lotes-count">—</span>
+      <button id="btn-lote-dg" class="filter-chip dg-chip no-print" onclick="toggleLoteDoenca()" title="Filtrar por Doença Grave" style="margin-left:4px">🩺 Doença Grave</button>
       <div style="margin-left:auto;display:flex;gap:7px">
         <button class="btn btn-ghost btn-sm no-print" onclick="imprimirLotesView()">🖨️ Imprimir</button>
         <button class="btn btn-primary btn-sm no-print edit-only full-edit-only" onclick="openNovoLoteModal()">＋ Novo Lote</button>
@@ -568,6 +569,14 @@ body.exercicios-level .full-edit-only{display:none!important}
           <div class="rel-group">
             <label>Período — Até</label>
             <input type="text" id="rel-lote-ate" placeholder="dd/mm/aaaa" maxlength="10" oninput="maskDate(this)">
+          </div>
+          <div class="rel-group">
+            <label>Doença Grave</label>
+            <select id="rel-lote-doenca">
+              <option value="TODOS">Todos</option>
+              <option value="SIM">Somente com Doença Grave</option>
+              <option value="NAO">Somente sem Doença Grave</option>
+            </select>
           </div>
           <div class="rel-group">
             <label>Exibir detalhes</label>
@@ -2679,19 +2688,41 @@ function renderImpugnacao(){
 }
 
 // ── LOTES VIEW ────────────────────────────────────────────────────────────────
+let lotesFiltroDG=false;
+function toggleLoteDoenca(){
+  lotesFiltroDG=!lotesFiltroDG;
+  const btn=document.getElementById('btn-lote-dg');
+  if(btn)btn.classList.toggle('active',lotesFiltroDG);
+  renderLotes();
+}
+
 function renderLotes(){
-  document.getElementById('lotes-count').textContent=allLotes.length+' lotes';
+  // Mapa CPF → doencaGrave
+  const dgMap={};
+  allClients.forEach(c=>{dgMap[c.cpfCnpj]=!!c.doencaGrave;});
+  const temDG=cpf=>!!dgMap[cpf];
+
+  const lotesVisiveis=allLotes.map((l,idx)=>{
+    const pags=lotesFiltroDG?(l.pagamentos||[]).filter(p=>temDG(p.cpfCnpj)):(l.pagamentos||[]);
+    return{l,idx,pags};
+  }).filter(({pags})=>!lotesFiltroDG||pags.length>0);
+
+  document.getElementById('lotes-count').textContent=allLotes.length+' lotes'+(lotesFiltroDG?' (🩺 filtrado)':'');
   if(!allLotes.length){
     document.getElementById('lotes-list').innerHTML='<div class="empty-state"><div class="empty-icon">📋</div><div>Nenhum lote cadastrado. Clique em ＋ Novo Lote para começar.</div></div>';
     return;
   }
-  document.getElementById('lotes-list').innerHTML=allLotes.map((l,idx)=>{
-    const totalGeral=l.pagamentos.reduce((s,p)=>s+(p.total||Object.values(p.porExercicio||{}).reduce((a,b)=>a+b,0)),0);
+  if(lotesFiltroDG&&!lotesVisiveis.length){
+    document.getElementById('lotes-list').innerHTML='<div class="empty-state"><div class="empty-icon">🩺</div><div>Nenhum cliente com Doença Grave encontrado nos lotes.</div></div>';
+    return;
+  }
+  document.getElementById('lotes-list').innerHTML=lotesVisiveis.map(({l,idx,pags})=>{
+    const totalGeral=pags.reduce((s,p)=>s+(p.total||Object.values(p.porExercicio||{}).reduce((a,b)=>a+b,0)),0);
     return`<div class="lote-card">
       <div class="lote-hd" id="lote-hd-${idx}" onclick="toggleLote(${idx})">
         <span class="lote-data">📅 ${l.data}</span>
         ${l.descricao?`<span style="font-size:12.5px;color:var(--text2)">${l.descricao}</span>`:''}
-        <span class="lote-count">${l.pagamentos.length} cliente${l.pagamentos.length!==1?'s':''}</span>
+        <span class="lote-count">${pags.length} cliente${pags.length!==1?'s':''}</span>
         <span class="lote-total-badge">${fmtBRL(totalGeral)}</span>
         <button class="btn btn-ghost btn-sm edit-only full-edit-only" style="margin-left:4px" onclick="event.stopPropagation();abrirEdicaoLote(${idx})">✏️ Editar</button>
         <button class="btn btn-ghost btn-sm no-print" style="margin-left:2px" onclick="event.stopPropagation();imprimirLoteUnico(${idx})" title="Imprimir este lote">🖨️</button>
@@ -2702,13 +2733,14 @@ function renderLotes(){
         <table class="lote-table">
           <thead><tr><th>CPF/CNPJ</th><th>Nome</th><th>Exercícios</th><th style="text-align:right">Total</th><th></th></tr></thead>
           <tbody>
-            ${l.pagamentos.map((p,pi)=>{
+            ${pags.map((p,pi)=>{
               const exStr=Object.entries(p.porExercicio||{}).sort((a,b)=>b[0]-a[0]).map(([yr,v])=>`${yr}: ${fmtBRL(v)}`).join(' · ');
               const tot=p.total||Object.values(p.porExercicio||{}).reduce((a,b)=>a+b,0);
-              const podeEditar=canEditExercicios();
-              return`<tr style="cursor:${podeEditar?'pointer':'default'}" ${podeEditar?`onclick="openLoteCliente(${idx},${pi})"`:''}>
-                <td class="td-doc">${p.cpfCnpj}</td>
-                <td class="td-name">${p.nome}</td>
+              const podeEditar=canEditExercicios()&&!lotesFiltroDG;
+              const piReal=(l.pagamentos||[]).findIndex(x=>x.cpfCnpj===p.cpfCnpj);
+              return`<tr style="cursor:${podeEditar?'pointer':'default'}" ${podeEditar?`onclick="openLoteCliente(${idx},${piReal})"`:''}>
+                <td class="td-doc" style="white-space:nowrap">${p.cpfCnpj}</td>
+                <td class="td-name">${p.nome}${temDG(p.cpfCnpj)?' <span class="tag-doenca" style="font-size:10px">🩺</span>':''}</td>
                 <td style="font-size:11.5px;color:var(--text2)">${exStr||'—'}</td>
                 <td class="lote-total-row" style="text-align:right">${fmtBRL(tot)}</td>
                 <td style="text-align:right">${podeEditar?'<span style="font-size:11px;color:var(--accent)">✏️</span>':''}</td>
@@ -4432,9 +4464,23 @@ function gerarRelatorioLotes(){
   const deStr=document.getElementById('rel-lote-de').value.trim();
   const ateStr=document.getElementById('rel-lote-ate').value.trim();
   const detalhe=document.getElementById('rel-lote-detalhe').value;
+  const doencaFiltro=(document.getElementById('rel-lote-doenca')?.value)||'TODOS';
   const parseDMY=s=>{const[d,m,y]=s.split('/');return new Date(+y,+m-1,+d);};
   const deDt=deStr.length===10?parseDMY(deStr):null;
   const ateDt=ateStr.length===10?parseDMY(ateStr):null;
+
+  // Mapa CPF → doencaGrave para cruzamento rápido
+  const doencaMap={};
+  allClients.forEach(c=>{doencaMap[c.cpfCnpj]=!!c.doencaGrave;});
+  const temDoenca=cpf=>!!doencaMap[cpf];
+
+  // Função de filtro de pagamento por busca + doença
+  const pagMatch=p=>{
+    if(busca&&!(p.nome||'').toLowerCase().includes(busca)&&!(p.cpfCnpj||'').includes(busca))return false;
+    if(doencaFiltro==='SIM'&&!temDoenca(p.cpfCnpj))return false;
+    if(doencaFiltro==='NAO'&&temDoenca(p.cpfCnpj))return false;
+    return true;
+  };
 
   let lotes=allLotes.filter(l=>{
     if(deDt||ateDt){
@@ -4442,10 +4488,8 @@ function gerarRelatorioLotes(){
       if(deDt&&lDt<deDt)return false;
       if(ateDt&&lDt>ateDt)return false;
     }
-    if(busca){
-      return (l.pagamentos||[]).some(p=>(p.nome||'').toLowerCase().includes(busca)||(p.cpfCnpj||'').includes(busca));
-    }
-    return true;
+    // Mantém lote apenas se houver pelo menos 1 pagamento que passa no filtro
+    return (l.pagamentos||[]).some(p=>pagMatch(p));
   });
 
   const dataGer=new Date().toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
@@ -4453,6 +4497,8 @@ function gerarRelatorioLotes(){
   if(deStr)filtrosAtivos.push('De: '+deStr);
   if(ateStr)filtrosAtivos.push('Até: '+ateStr);
   if(busca)filtrosAtivos.push('Cliente: "'+busca+'"');
+  if(doencaFiltro==='SIM')filtrosAtivos.push('Doença Grave: Sim');
+  if(doencaFiltro==='NAO')filtrosAtivos.push('Doença Grave: Não');
 
   document.getElementById('rel-output-title').textContent=`${lotes.length} lote${lotes.length!==1?'s':''} encontrado${lotes.length!==1?'s':''}`;
   document.getElementById('print-header-sub').textContent=`Lotes de Restituição · Gerado em ${dataGer}${filtrosAtivos.length?' · '+filtrosAtivos.join(', '):''}`;
@@ -4490,7 +4536,7 @@ function gerarRelatorioLotes(){
     // Detalhado: cada lote com seus clientes
     html+=lotes.map(l=>{
       const tot=(l.pagamentos||[]).reduce((s,p)=>s+(p.total||Object.values(p.porExercicio||{}).reduce((a,b)=>a+b,0)),0);
-      const pags=busca?(l.pagamentos||[]).filter(p=>(p.nome||'').toLowerCase().includes(busca)||(p.cpfCnpj||'').includes(busca)):(l.pagamentos||[]);
+      const pags=(l.pagamentos||[]).filter(p=>pagMatch(p));
       return`<div class="rel-panel" style="margin-bottom:12px">
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
           <span style="font-family:'DM Mono',monospace;font-weight:700;font-size:13px">📅 ${l.data}</span>
@@ -4503,7 +4549,8 @@ function gerarRelatorioLotes(){
           <tbody>${pags.map(p=>{
             const exStr=Object.entries(p.porExercicio||{}).sort((a,b)=>b[0]-a[0]).map(([yr,v])=>`${yr}: ${fmtBRL(v)}`).join(' · ');
             const ptot=p.total||Object.values(p.porExercicio||{}).reduce((a,b)=>a+b,0);
-            return`<tr><td style="font-family:'DM Mono',monospace;font-size:11.5px">${p.cpfCnpj}</td><td style="font-weight:500">${p.nome}</td><td style="font-size:11.5px;color:var(--text2)">${exStr||'—'}</td><td style="text-align:right;font-family:'DM Mono',monospace;font-weight:600;color:var(--green)">${fmtBRL(ptot)}</td></tr>`;
+            const dg=temDoenca(p.cpfCnpj);
+            return`<tr><td style="font-family:'DM Mono',monospace;font-size:11.5px;white-space:nowrap">${p.cpfCnpj}</td><td style="font-weight:500">${p.nome}${dg?' <span class="tag-doenca" style="font-size:10px">🩺 Doença Grave</span>':''}</td><td style="font-size:11.5px;color:var(--text2)">${exStr||'—'}</td><td style="text-align:right;font-family:'DM Mono',monospace;font-weight:600;color:var(--green)">${fmtBRL(ptot)}</td></tr>`;
           }).join('')}</tbody>
         </table></div>
       </div>`;
@@ -4564,8 +4611,13 @@ function imprimirLoteUnico(idx){
   if(w)setTimeout(()=>URL.revokeObjectURL(url),60000);
 }
 function imprimirLotesView(){
-  // Abre todos os lotes para impressão
-  allLotes.forEach((_,idx)=>{
+  // Abre somente os lotes visíveis (respeitando filtro de doença grave)
+  const dgMap={};
+  allClients.forEach(c=>{dgMap[c.cpfCnpj]=!!c.doencaGrave;});
+  const temDG=cpf=>!!dgMap[cpf];
+  allLotes.forEach((l,idx)=>{
+    const pagsVisiveis=lotesFiltroDG?(l.pagamentos||[]).filter(p=>temDG(p.cpfCnpj)):(l.pagamentos||[]);
+    if(lotesFiltroDG&&pagsVisiveis.length===0)return;
     const body=document.getElementById('lote-body-'+idx);
     const hd=document.getElementById('lote-hd-'+idx);
     const chev=document.getElementById('lote-chev-'+idx);
@@ -4574,7 +4626,9 @@ function imprimirLotesView(){
     if(chev){chev.classList.add('open');}
   });
   const dataGer=new Date().toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
-  document.getElementById('lotes-print-sub').textContent=`Gerado em ${dataGer} · ${allLotes.length} lote${allLotes.length!==1?'s':''}`;
+  const filtroLabel=lotesFiltroDG?' · 🩺 Somente com Doença Grave':'';
+  const totalVisiveis=lotesFiltroDG?allLotes.filter(l=>(l.pagamentos||[]).some(p=>temDG(p.cpfCnpj))).length:allLotes.length;
+  document.getElementById('lotes-print-sub').textContent=`Gerado em ${dataGer} · ${totalVisiveis} lote${totalVisiveis!==1?'s':''}${filtroLabel}`;
   window.print();
 }
 
