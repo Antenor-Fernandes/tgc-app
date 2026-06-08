@@ -695,6 +695,10 @@ body.exercicios-level .full-edit-only{display:none!important}
       <div class="form-group"><label>Honorários</label><input type="text" id="f-honorarios" placeholder="Ex: R$ 1.500,00 / mês"></div>
     </div>
     <div class="form-group"><label>Objeto do Contrato</label><textarea id="f-objeto" placeholder="Descreva o objeto do contrato de prestação de serviços…" style="min-height:60px"></textarea></div>
+    <!-- ── Honorários Pagos ── -->
+    <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin-top:4px;padding-bottom:6px;border-bottom:1px solid var(--border)">Honorários Pagos</div>
+    <div id="f-honor-pagos-list"></div>
+    <button type="button" class="btn btn-ghost btn-sm" style="margin-top:2px;margin-bottom:4px" onclick="addHonorarioPago()">＋ Adicionar Pagamento</button>
     <!-- ── Doença Grave ── -->
     <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin-top:4px;padding-bottom:6px;border-bottom:1px solid var(--border)">Doença Grave / Isenção</div>
     <div class="form-group"><label>Doença Grave (isenção de IR)</label>
@@ -1602,6 +1606,25 @@ let allClients=[], allLotes=[], filteredClients=[], currentFilter='TODOS';
 // Multi-filtro: activeFilters é um Set com os filtros do grupo2 ativos
 let activeFilters=new Set();
 let editingId=null, detailId=null, exEditId=null, exEditYear=null, currentView='lista';
+let editingHonorariosPagos=[];
+function renderHonorariosPagosForm(){
+  const list=document.getElementById('f-honor-pagos-list');
+  if(!list)return;
+  if(!editingHonorariosPagos.length){list.innerHTML='<div style="color:var(--text3);font-size:12px;padding:2px 0 6px">Nenhum pagamento registrado.</div>';return;}
+  list.innerHTML=editingHonorariosPagos.map((p,i)=>`
+    <div style="display:grid;grid-template-columns:105px 115px 130px 1fr 30px;gap:6px;margin-bottom:6px;align-items:center">
+      <input type="text" maxlength="10" placeholder="dd/mm/aaaa" style="font-size:12px;padding:5px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:'DM Sans',sans-serif;outline:none;width:100%" value="${esc(p.data||'')}" oninput="maskDate(this);editingHonorariosPagos[${i}].data=this.value">
+      <input type="text" placeholder="R$ 0,00" style="font-size:12px;padding:5px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:'DM Sans',sans-serif;outline:none;width:100%" value="${esc(p.valor||'')}" oninput="editingHonorariosPagos[${i}].valor=this.value">
+      <select style="font-size:12px;padding:5px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:'DM Sans',sans-serif;outline:none;width:100%" onchange="editingHonorariosPagos[${i}].responsavel=this.value">
+        <option value="">— Responsável —</option>
+        ${['Daniela','Flávio','Nando','Tânia','Escritório'].map(r=>`<option${p.responsavel===r?' selected':''}>${r}</option>`).join('')}
+      </select>
+      <input type="text" placeholder="Serviço (ex: IRPF 2025)" style="font-size:12px;padding:5px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:'DM Sans',sans-serif;outline:none;width:100%" value="${esc(p.servico||'')}" oninput="editingHonorariosPagos[${i}].servico=this.value">
+      <button type="button" class="btn btn-danger btn-sm" style="padding:4px 7px;min-width:28px" onclick="removeHonorarioPago(${i})">🗑</button>
+    </div>`).join('');
+}
+function addHonorarioPago(){editingHonorariosPagos.push({data:'',valor:'',responsavel:'',servico:''});renderHonorariosPagosForm();}
+function removeHonorarioPago(i){editingHonorariosPagos.splice(i,1);renderHonorariosPagosForm();}
 let prevView='lista', prevDeclStatuses=new Set(); // rastreia origem ao abrir detalhe
 
 // ── ACCESS CONTROL STATE ──────────────────────────────────────────────────────
@@ -3214,6 +3237,7 @@ function openDetail(id){
           </div>`;
         }).join('')}
     </div>
+    ${(()=>{const pagos=(c.honorariosPagos||[]).filter(p=>p.data||p.valor||p.servico).sort((a,b)=>(b.data||'').localeCompare(a.data||''));if(!pagos.length&&!canEditFields())return'';const total=pagos.reduce((s,p)=>{const v=parseFloat((p.valor||'').replace(/[R$\s]/g,'').replace(/\./g,'').replace(',','.'))||0;return s+v;},0);const fmtResp=r=>{const map={Daniela:'#ec4899',Flávio:'#6c48d6',Nando:'#2d6be4',Tânia:'#16a34a',Escritório:'#64748b'};const col=map[r];return col?`<span style="background:${col}22;color:${col};border:1px solid ${col}44;border-radius:4px;padding:1px 7px;font-size:10.5px;font-weight:700;white-space:nowrap">${esc(r)}</span>`:(r?esc(r):'—');};return`<div class="section-hd" style="margin-top:18px">💰 Honorários Pagos${total>0?` <span style="font-size:11.5px;font-weight:500;color:var(--green);margin-left:4px">${total.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</span>`:''}${canEditFields()?` <button class="btn btn-ghost btn-sm edit-only" onclick="openEdit('${c.id}')" title="Editar cliente para adicionar pagamentos">＋ Adicionar</button>`:''}</div><div class="ex-timeline">${pagos.length?pagos.map(p=>`<div class="ex-item" style="grid-template-columns:95px 125px 1fr auto"><span style="font-family:'DM Mono',monospace;font-size:12px;color:var(--text2)">${esc(p.data||'—')}</span><span style="font-size:13px;font-weight:600;color:var(--green)">${esc(p.valor||'—')}</span><span style="font-size:12.5px;color:var(--text2)">${esc(p.servico||'—')}</span>${fmtResp(p.responsavel||'')}</div>`).join(''):'<div style="color:var(--text3);font-size:13px;padding:10px">Nenhum pagamento registrado.</div>'}</div>`;})()}
     ${(c.historico&&c.historico.length)?`
     <div class="section-hd" style="margin-top:18px">📋 Histórico de Alterações</div>
     <div class="hist-timeline">
@@ -3750,6 +3774,7 @@ function openNewClientModal(){
   document.getElementById('f-datacontrato').value='';
   document.getElementById('f-honorarios').value='';
   document.getElementById('f-objeto').value='';
+  editingHonorariosPagos=[];renderHonorariosPagosForm();
   document.getElementById('f-doenca').value='false';
   document.getElementById('f-doenca-box').style.display='none';
   document.getElementById('f-laudo').value='false';
@@ -3787,6 +3812,7 @@ function openEdit(id){
   document.getElementById('f-datacontrato').value=c.dataContrato||'';
   document.getElementById('f-honorarios').value=c.honorarios||'';
   document.getElementById('f-objeto').value=c.objeto||'';
+  editingHonorariosPagos=JSON.parse(JSON.stringify(c.honorariosPagos||[]));renderHonorariosPagosForm();
   document.getElementById('f-doenca').value=c.doencaGrave?'true':'false';
   const showDG=c.doencaGrave;
   document.getElementById('f-doenca-box').style.display=showDG?'flex':'none';
@@ -3882,7 +3908,8 @@ async function saveClient(){
     exGCAP:existing?.exGCAP||{},
     exPerdcomps:existing?.exPerdcomps||{},
     exProcessos:existing?.exProcessos||{},
-    exAtencao:existing?.exAtencao||{}};
+    exAtencao:existing?.exAtencao||{},
+    honorariosPagos:editingHonorariosPagos||[]};
   // Remove campo legado perdcomp se existir
   if(existing?.perdcomp&&!(existing?.perdcomps?.length))obj.perdcomps=getPerdcomps(existing);
   // atualiza allClients em memória imediatamente
