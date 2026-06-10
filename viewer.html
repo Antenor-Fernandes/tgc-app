@@ -1691,7 +1691,8 @@ async function testGHConnectionViewer(){
 async function saveViewerToken(){
   const token = document.getElementById('gh-read-token').value.trim();
   const saved = (() => {try{return JSON.parse(localStorage.getItem(GH_CFG_KEY));}catch(e){return null;}})();
-  const newCfg = {owner: ghCfg.owner, repo: ghCfg.repo, readToken: token||null};
+  // Preserva writeToken/token existentes (salvos pelo index.html) ao gravar o token de leitura
+  const newCfg = {owner: ghCfg.owner, repo: ghCfg.repo, readToken: token||null, writeToken: saved?.writeToken||null, token: saved?.token||null};
   localStorage.setItem(GH_CFG_KEY, JSON.stringify(newCfg));
   ghCfg.token = token || null;
   ghCfg.readToken = token || null;
@@ -1755,7 +1756,7 @@ async function init(){
   }
   allClients.sort((a,b)=>(a.nome||"").localeCompare(b.nome||"","pt-BR"));
   allLotes.sort((a,b)=>{
-    const pd=s=>{const[d,m,y]=s.split('/');return new Date(y,m-1,d)};
+    const pd=s=>{const[d,m,y]=(s||'').split('/');return new Date(y,m-1,d)};
     return pd(b.data)-pd(a.data);
   });
   // ── MIGRAÇÃO ÚNICA: preenche dados cadastrais clientes A (2026-03-20) ──
@@ -3650,7 +3651,7 @@ async function autoUpdateLote(c,yr,data,valor){
     const novoLote={data,descricao:`Lote ${data}`,pagamentos:[]};
     allLotes.unshift(novoLote);
     allLotes.sort((a,b)=>{
-      const pd=s=>{const[d,m,y]=s.split('/');return new Date(y,m-1,d)};
+      const pd=s=>{const[d,m,y]=(s||'').split('/');return new Date(y,m-1,d)};
       return pd(b.data)-pd(a.data);
     });
     loteIdx=allLotes.findIndex(l=>l.data===data);
@@ -4250,7 +4251,7 @@ async function syncDados(silencioso=false){
       }catch(e){}
       if(Array.isArray(ghData.access)&&ghData.access.length>0) accessList=ghData.access;
       allClients.sort((a,b)=>(a.nome||'').localeCompare(b.nome||'','pt-BR'));
-      allLotes.sort((a,b)=>{const pd=s=>{const[d,m,y]=s.split('/');return new Date(y,m-1,d)};return pd(b.data)-pd(a.data);});
+      allLotes.sort((a,b)=>{const pd=s=>{const[d,m,y]=(s||'').split('/');return new Date(y,m-1,d)};return pd(b.data)-pd(a.data);});
       refreshCurrentView();
       if(!silencioso) showToast('✅ Dados atualizados!','success');
     } else {
@@ -4273,9 +4274,13 @@ setInterval(()=>syncDados(true), 10 * 60 * 1000);
 let _viewerSHA = null;
 async function checkViewerVersion(){
   try{
+    if(!ghCfg?.owner||!ghCfg?.repo) return;
+    const headers={'Accept':'application/vnd.github.v3+json'};
+    const vToken=ghCfg?.token||ghCfg?.readToken||ghCfg?.writeToken||null;
+    if(vToken) headers['Authorization']=`token ${vToken}`;
     const r = await fetch(
-      'https://api.github.com/repos/Antenor-Fernandes/tgc-app/contents/viewer.html',
-      {cache:'no-store', headers:{'Accept':'application/vnd.github.v3+json'}}
+      `https://api.github.com/repos/${ghCfg.owner}/${ghCfg.repo}/contents/viewer.html`,
+      {cache:'no-store', headers}
     );
     if(!r.ok) return;
     const j = await r.json();
