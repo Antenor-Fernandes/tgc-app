@@ -504,7 +504,7 @@ body.exercicios-level .full-edit-only{display:none!important}
             <label>Acesso e-CAC</label>
             <select id="rel-acesso">
               <option value="TODOS">Todos</option>
-              <option value="GOV.BR">Gov.br</option>
+              <option value="SENHA GOV">Senha Gov</option>
               <option value="PROCURAÇÃO ECAC">Procuração e-CAC</option>
               <option value="CERT DIG TGC">Cert. Digital TGC</option>
             </select>
@@ -678,7 +678,7 @@ body.exercicios-level .full-edit-only{display:none!important}
       <div class="form-group"><label>Forma de Acesso</label>
         <select id="f-acesso" onchange="toggleProcuracao()">
           <option value="">— Selecione —</option>
-          <option>CERT DIG PRÓPRIO</option><option>GOV.BR PRATA</option><option>GOV.BR OURO</option>
+          <option>CERT DIG PRÓPRIO</option><option>SENHA GOV</option>
           <option>PROCURAÇÃO ECAC</option><option>SEM ACESSO</option>
         </select></div>
       <div class="form-group"><label>Senha gov.br</label><input type="text" id="f-senha" placeholder="(opcional)"></div>
@@ -1628,6 +1628,8 @@ async function init(){
     if(!still){currentUser=null;sessionStorage.removeItem(SESSION_KEY);}
     else currentUser=still; // Atualiza nivel caso tenha mudado
   }
+  // Normaliza forma de acesso antiga (GOV.BR PRATA / GOV.BR OURO / GOV.BR) para SENHA GOV
+  allClients.forEach(c=>{if(c.acessoEcac==='GOV.BR PRATA'||c.acessoEcac==='GOV.BR OURO'||c.acessoEcac==='GOV.BR')c.acessoEcac='SENHA GOV';});
   allClients.sort((a,b)=>(a.nome||"").localeCompare(b.nome||"","pt-BR"));
   allLotes.sort((a,b)=>{
     const pd=s=>{const[d,m,y]=(s||'').split('/');return new Date(y,m-1,d)};
