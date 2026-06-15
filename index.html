@@ -218,17 +218,13 @@ body.readonly .edit-only{display:none!important}
 .toast{position:fixed;bottom:22px;right:22px;background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:11px 16px;font-size:13px;box-shadow:var(--shadow);z-index:999;display:flex;align-items:center;gap:7px;transform:translateY(8px);opacity:0;transition:all .25s}
 .toast.show{transform:translateY(0);opacity:1}
 
-/* DOENÇA GRAVE + RRA */
+/* DOENÇA GRAVE */
 .badge-doenca{background:rgba(220,38,38,.13);color:#dc2626;border:1px solid rgba(220,38,38,.28)}
 .badge-nao_entregue{background:rgba(100,116,139,.15);color:#475569;border:1px solid rgba(100,116,139,.35)}
 .dot-nao_entregue{background:#94a3b8}
-.badge-rra{background:rgba(234,88,12,.13);color:#ea580c;border:1px solid rgba(234,88,12,.28)}
 .tag-doenca{display:inline-flex;align-items:center;gap:3px;background:rgba(220,38,38,.10);border:1px solid rgba(220,38,38,.22);border-radius:5px;padding:2px 7px;font-size:10.5px;font-weight:700;color:#dc2626;white-space:nowrap}
-.tag-rra{display:inline-flex;align-items:center;gap:3px;background:rgba(234,88,12,.10);border:1px solid rgba(234,88,12,.22);border-radius:5px;padding:2px 7px;font-size:10.5px;font-weight:700;color:#ea580c;white-space:nowrap}
 .cond-row{display:flex;gap:5px;flex-wrap:wrap;margin-top:4px}
 .filter-chip.dg-chip.active{background:rgba(220,38,38,.12);color:#dc2626;border-color:rgba(220,38,38,.3)}
-.filter-chip.rra-chip.active{background:rgba(234,88,12,.12);color:#ea580c;border-color:rgba(234,88,12,.3)}
-.filter-chip.gcap-chip.active{background:rgba(124,92,252,.12);color:var(--accent2);border-color:rgba(124,92,252,.3)}
 .filter-chip.proc-chip.active{background:rgba(99,102,241,.12);color:#818cf8;border-color:rgba(99,102,241,.3)}
 .filter-chip.atencao-chip{border-color:rgba(245,158,11,.25)}
 .filter-chip.atencao-chip.active{background:rgba(245,158,11,.14);color:#d97706;border-color:rgba(245,158,11,.45);font-weight:700}
@@ -522,8 +518,6 @@ body.exercicios-level .full-edit-only{display:none!important}
             <label>Características</label>
             <select id="rel-caract">
               <option value="TODOS">Todos</option>
-              <option value="RRA">Com RRA</option>
-              <option value="GCAP">Com GCAP</option>
               <option value="PER">Com PERDCOMP</option>
               <option value="PERR">PERDCOMP a receber</option>
               <option value="PROC">Com PROCESSO</option>
@@ -794,31 +788,9 @@ body.exercicios-level .full-edit-only{display:none!important}
       <input type="text" id="ex-impug-data" placeholder="dd/mm/aaaa" maxlength="10" oninput="maskDate(this)"
         style="display:block;width:100%;margin-top:6px;background:var(--surface);border:1px solid rgba(236,72,153,.35);border-radius:7px;padding:7px 10px;font-size:12.5px;color:var(--text);font-family:'DM Sans',sans-serif;outline:none;box-sizing:border-box">
     </div>
-    <!-- ── RRA / GCAP / PERDCOMP ── -->
+    <!-- ── PERDCOMP / PROCESSO ── -->
     <div class="ex-section-sep">
       <div class="ex-extras-label">Informações adicionais do exercício</div>
-      <!-- RRA -->
-      <div style="margin-bottom:8px">
-        <div class="ex-check-row" onclick="document.getElementById('ex-rra-ativo').click()">
-          <input type="checkbox" id="ex-rra-ativo" onchange="toggleExRRA()" onclick="event.stopPropagation()">
-          <span class="ex-check-label">📄 RRA – Rendimentos Recebidos Acumuladamente</span>
-        </div>
-        <div id="ex-rra-obs-row" style="display:none;margin-top:8px">
-          <div class="ex-per-field"><label>Observações sobre RRA</label>
-            <textarea id="ex-rra-obs" placeholder="Ex: Rescisão trabalhista, aposentadoria acumulada…" style="min-height:55px"></textarea></div>
-        </div>
-      </div>
-      <!-- GCAP -->
-      <div style="margin-bottom:8px">
-        <div class="ex-check-row" onclick="document.getElementById('ex-gcap-ativo').click()">
-          <input type="checkbox" id="ex-gcap-ativo" onchange="toggleExGCAP()" onclick="event.stopPropagation()">
-          <span class="ex-check-label">📈 GCAP – Ganho de Capital</span>
-        </div>
-        <div id="ex-gcap-obs-row" style="display:none;margin-top:8px">
-          <div class="ex-per-field"><label>Observações sobre GCAP</label>
-            <textarea id="ex-gcap-obs" placeholder="Ex: Venda de imóvel em 03/2023, ganho R$ 85.000…" style="min-height:55px"></textarea></div>
-        </div>
-      </div>
       <!-- PERDCOMP por exercício -->
       <div style="margin-bottom:8px">
         <div class="ex-check-row" onclick="document.getElementById('ex-per-ativo').click()">
@@ -1858,8 +1830,6 @@ async function init(){
         if(c.impugnacoes?.[yr])continue;
         if(c.exAtencao?.[yr])continue;
         if((c.exProcessos?.[yr]||[]).length>0)continue;
-        if(c.exRRA?.[yr]?.ativo)continue;
-        if(c.exGCAP?.[yr]?.ativo)continue;
         // Extrai apenas o detalhe (sem o prefixo de categoria)
         const det=st.replace(_CATS_RE,'').trim();
         // Só age se o detalhe for EXATAMENTE "valor EM data" — nada mais
@@ -1892,8 +1862,6 @@ async function init(){
         if(c.impugnacoes?.[yr])continue;
         if(c.exAtencao?.[yr])continue;
         if((c.exProcessos?.[yr]||[]).length>0)continue;
-        if(c.exRRA?.[yr]?.ativo)continue;
-        if(c.exGCAP?.[yr]?.ativo)continue;
         const det=st.replace(_CATS_RE2,'').trim();
         const mv=_VALDASH_RE.exec(det);
         if(!mv)continue;
@@ -2176,7 +2144,7 @@ function renderTable(list){
 }
 
 // ── FILTER ────────────────────────────────────────────────────────────────────
-const GRUPO2_KEYS=new Set(['DOENCA','RRA','GCAP','PER','PROC','ATENCAO','PERR','MALHA_SEM_DDA']);
+const GRUPO2_KEYS=new Set(['DOENCA','PER','PROC','ATENCAO','PERR','MALHA_SEM_DDA']);
 function renderFilterChips(){
   const grupo1=[
     {key:'TODOS',  label:'Todos',  cls:'', icon:''},
@@ -2185,8 +2153,6 @@ function renderFilterChips(){
   ];
   const grupo2=[
     {key:'DOENCA', label:'Doença Grave',  cls:'dg-chip',      icon:'🩺'},
-    {key:'RRA',    label:'RRA',           cls:'rra-chip',     icon:'📄'},
-    {key:'GCAP',   label:'GCAP',          cls:'gcap-chip',    icon:'📈'},
     {key:'PER',    label:'PERDCOMP',      cls:'per-chip',     icon:'💰'},
     {key:'PROC',   label:'PROCESSO',      cls:'proc-chip',    icon:'⚖️'},
     {key:'ATENCAO',label:'ATENÇÃO',       cls:'atencao-chip', icon:'⚠️'},
@@ -2227,8 +2193,6 @@ function refreshCurrentView(){
   if(currentView==='detalhe'&&detailId){openDetail(detailId);return;}
   if(currentView==='decl'){renderDecl();return;}
 }
-function clientHasRRA(c){return Object.values(c.exRRA||{}).some(v=>v?.ativo);}
-function clientHasGCAP(c){return Object.values(c.exGCAP||{}).some(v=>v?.ativo);}
 function clientHasPer(c){return getPerdcomps(c).length>0||Object.values(c.exPerdcomps||{}).some(v=>Array.isArray(v)&&v.length>0);}
 function clientHasAtencao(c){return !!(c.atencao)||Object.values(c.exAtencao||{}).some(Boolean);}
 function clientHasPerAReceber(c){
@@ -2255,8 +2219,6 @@ function matchesFilter(c,key){
   if(key==='TODOS')return true;
   if(key==='PF'||key==='PJ')return c.tipo===key;
   if(key==='DOENCA')return c.doencaGrave;
-  if(key==='RRA')return clientHasRRA(c);
-  if(key==='GCAP')return clientHasGCAP(c);
   if(key==='PER')return clientHasPer(c);
   if(key==='PROC')return clientHasProc(c);
   if(key==='ATENCAO')return clientHasAtencao(c);
@@ -3044,16 +3006,12 @@ function openDetail(id){
           const qeBtn=canEditExercicios()?`<button class="btn btn-primary btn-sm edit-only" onclick="event.stopPropagation();openQE('${c.id}','${yr}',event)" title="Edição rápida">⚡</button>`:'';
           const rec=c.recebimentos?.[yr];
           const impugDate=c.impugnacoes?.[yr]?.data;
-          const rra=c.exRRA?.[yr];
-          const gcap=c.exGCAP?.[yr];
           const exPers=c.exPerdcomps?.[yr]||[];
           const exProcsYr=c.exProcessos?.[yr]||[];
           const dda=c.dda?.[yr];
           const recInfo=rec&&rec.data?`<div style="display:inline-flex;align-items:center;gap:6px;margin-top:5px;font-size:11.5px;color:var(--green);font-family:'DM Mono',monospace;font-weight:600"><span>📅 ${rec.data}</span>${rec.valor?`<span>💰 ${rec.valor.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})}</span>`:''}  </div>`:'';
           const impugInfo=impugDate?`<div style="margin-top:4px;font-size:11.5px;color:#ec4899;font-weight:600">⚖️ Impugn. em ${impugDate}</div>`:'';
           const ddaInfo=dda?.feito?`<div style="margin-top:4px;font-size:11.5px;color:var(--orange);font-weight:600">✅ DDA feito${dda.data?` — ${dda.data}`:''}</div>`:'';
-          const rraInfo=rra?.ativo?`<div style="margin-top:4px;font-size:11.5px;color:#6366f1;font-weight:600">📄 RRA${rra.obs?` — ${rra.obs.slice(0,60)}`:''}</div>`:'';
-          const gcapInfo=gcap?.ativo?`<div style="margin-top:4px;font-size:11.5px;color:#10b981;font-weight:600">📈 GCAP${gcap.obs?` — ${gcap.obs.slice(0,60)}`:''}</div>`:'';
           const _perTag=()=>`<span style="font-size:10px;font-weight:800;letter-spacing:.6px;background:rgba(217,119,6,.15);color:#d97706;border:1px solid rgba(217,119,6,.35);border-radius:4px;padding:1px 6px;margin-right:6px;flex-shrink:0">PER</span>`;
           const _numRow=p=>p.numero?`<div style="font-family:'DM Mono',monospace;font-size:11.5px;color:var(--text3);margin-top:3px;padding-left:2px;letter-spacing:.15px">${p.numero}</div>`:'';
           const perInfo=exPers.length?exPers.map((p,i)=>{
@@ -3090,7 +3048,7 @@ function openDetail(id){
             <div class="ex-item-year">${yr}</div>
             <div><span class="badge badge-${cat.cls}" style="margin-bottom:4px">${cat.label}</span>
               <div class="ex-item-status">${(()=>{const cats2=['EM PROCESSAMENTO','PROCESSADA','EM MALHA','TRABALHO MANUAL RFB','TRANSMITIDA','EM FILA DE RESTITUIÇÃO','PERDCOMP','IMPUGNAÇÃO','IMPUGNAR','AGUARDANDO','NÃO DECLARADA','OUTRO'];const cm=cats2.find(o=>st.toUpperCase().startsWith(o));return cm?st.slice(cm.length).replace(/^\s*[\-\u2014]\s*/,'').trim():st;})()}</div>
-              ${recInfo}${impugInfo}${ddaInfo}${rraInfo}${gcapInfo}${perInfo}${procInfo}${exAtencaoInfo}</div>
+              ${recInfo}${impugInfo}${ddaInfo}${perInfo}${procInfo}${exAtencaoInfo}</div>
             <div style="display:flex;gap:5px">${qeBtn}${editBtn}</div>
           </div>`;
         }).join('')}
@@ -3129,14 +3087,6 @@ function clearExRecFields(){
   document.getElementById('ex-impug-box').style.display='none';
   const impugData=document.getElementById('ex-impug-data');
   if(impugData)impugData.value='';
-  // RRA
-  document.getElementById('ex-rra-ativo').checked=false;
-  document.getElementById('ex-rra-obs').value='';
-  document.getElementById('ex-rra-obs-row').style.display='none';
-  // GCAP
-  document.getElementById('ex-gcap-ativo').checked=false;
-  document.getElementById('ex-gcap-obs').value='';
-  document.getElementById('ex-gcap-obs-row').style.display='none';
   // PERDCOMP por exercício
   document.getElementById('ex-per-ativo').checked=false;
   document.getElementById('ex-per-box').style.display='none';
@@ -3193,18 +3143,6 @@ function openExModal(clientId,year,focusPerIdx){
   const impug=c?.impugnacoes?.[year]||{};
   document.getElementById('ex-impug-box').style.display=isImpug?'block':'none';
   document.getElementById('ex-impug-data').value=impug.data||'';
-  // Carregar RRA — checkbox ativado se há ativo:true OU obs preenchida
-  const rra=c?.exRRA?.[year]||{};
-  const rraOn=!!(rra.ativo)||!!(rra.obs);
-  document.getElementById('ex-rra-ativo').checked=rraOn;
-  document.getElementById('ex-rra-obs').value=rra.obs||'';
-  document.getElementById('ex-rra-obs-row').style.display=rraOn?'block':'none';
-  // Carregar GCAP — checkbox ativado se há ativo:true OU obs preenchida
-  const gcap=c?.exGCAP?.[year]||{};
-  const gcapOn=!!(gcap.ativo)||!!(gcap.obs);
-  document.getElementById('ex-gcap-ativo').checked=gcapOn;
-  document.getElementById('ex-gcap-obs').value=gcap.obs||'';
-  document.getElementById('ex-gcap-obs-row').style.display=gcapOn?'block':'none';
   // Carregar PERDCOMPs do exercício
   document.getElementById('ex-per-list').innerHTML='';
   exPerCount=0;
@@ -3227,7 +3165,7 @@ function openExModal(clientId,year,focusPerIdx){
   const modalBody=document.querySelector('#modal-ex .modal-body');
   // Desabilita inputs/selects/textareas (exceto o campo ano que já é sempre disabled)
   modalBody.querySelectorAll('input:not(#ex-year-disp),textarea,select').forEach(el=>{el.disabled=!editable;});
-  // Bloqueia clique nos check-rows (RRA, GCAP, PERDCOMP, PROCESSO)
+  // Bloqueia clique nos check-rows (PERDCOMP, PROCESSO)
   modalBody.querySelectorAll('.ex-check-row').forEach(el=>{el.style.pointerEvents=editable?'':'none';});
   // Esconde botões de ação no corpo (＋Adicionar e 🗑 excluir entradas)
   modalBody.querySelectorAll('.btn').forEach(btn=>{btn.style.display=editable?'':'none';});
@@ -3261,16 +3199,6 @@ function toggleExDdaData(){
   const feito=document.getElementById('ex-dda-feito').checked;
   document.getElementById('ex-dda-data-row').style.display=feito?'block':'none';
   if(!feito)document.getElementById('ex-dda-data').value='';
-}
-function toggleExRRA(){
-  const on=document.getElementById('ex-rra-ativo').checked;
-  document.getElementById('ex-rra-obs-row').style.display=on?'block':'none';
-  // Não limpa o campo ao desmarcar — dados preservados até exclusão explícita
-}
-function toggleExGCAP(){
-  const on=document.getElementById('ex-gcap-ativo').checked;
-  document.getElementById('ex-gcap-obs-row').style.display=on?'block':'none';
-  // Não limpa o campo ao desmarcar — dados preservados até exclusão explícita
 }
 function toggleExPer(){
   const on=document.getElementById('ex-per-ativo').checked;
@@ -3426,19 +3354,6 @@ async function saveExModal(){
   }else{
     delete c.impugnacoes[yr];
   }
-  // Salva RRA — preserva dados se obs preenchida mesmo com checkbox desmarcado;
-  // só deleta se checkbox desmarcado E obs vazia (exclusão explícita)
-  if(!c.exRRA)c.exRRA={};
-  const rraAtivo=document.getElementById('ex-rra-ativo').checked;
-  const rraObs=document.getElementById('ex-rra-obs').value.trim();
-  if(rraAtivo||rraObs){c.exRRA[yr]={ativo:rraAtivo,obs:rraObs};}
-  else{delete c.exRRA[yr];}
-  // Salva GCAP — mesma lógica de preservação
-  if(!c.exGCAP)c.exGCAP={};
-  const gcapAtivo=document.getElementById('ex-gcap-ativo').checked;
-  const gcapObs=document.getElementById('ex-gcap-obs').value.trim();
-  if(gcapAtivo||gcapObs){c.exGCAP[yr]={ativo:gcapAtivo,obs:gcapObs};}
-  else{delete c.exGCAP[yr];}
   // Salva PERDCOMPs do exercício
   if(!c.exPerdcomps)c.exPerdcomps={};
   // Captura estado anterior antes de sobrescrever (para sincronizar lotes)
@@ -3576,8 +3491,6 @@ async function deleteExModal(){
   if(c.recebimentos)delete c.recebimentos[exEditYear];
   if(c.dda)delete c.dda[exEditYear];
   if(c.impugnacoes)delete c.impugnacoes[exEditYear];
-  if(c.exRRA)delete c.exRRA[exEditYear];
-  if(c.exGCAP)delete c.exGCAP[exEditYear];
   // Remove PERDCOMPs do exercício dos lotes de restituição
   const exPersParaRemover=(c.exPerdcomps&&c.exPerdcomps[exEditYear])||[];
   for(let i=0;i<exPersParaRemover.length;i++){
@@ -3755,15 +3668,12 @@ async function saveClient(){
     atencao:document.getElementById('f-atencao').checked,
     // Campos derivados / preservados
     temPer:existing?clientHasPer(existing):false,
-    temRRA:existing?.temRRA||false,
     exercicios:existing?.exercicios||{},
     historico:existing?.historico||[],
     recebimentos:existing?.recebimentos||{},
     dda:existing?.dda||{},
     impugnacoes:existing?.impugnacoes||{},
     perdcomps:existing?.perdcomps||[],
-    exRRA:existing?.exRRA||{},
-    exGCAP:existing?.exGCAP||{},
     exPerdcomps:existing?.exPerdcomps||{},
     exProcessos:existing?.exProcessos||{},
     exAtencao:existing?.exAtencao||{},
@@ -3794,7 +3704,7 @@ function confirmDelete(id){
   const loteInfo=lotesAfetados.length>0
     ?`<div>📋 ${totalLoteEntradas} entrada${totalLoteEntradas!==1?'s':''} em ${lotesAfetados.length} lote${lotesAfetados.length!==1?'s':''} de restituição</div>`:'';
   document.getElementById('delete-confirm-detail').innerHTML=
-    `⚠️ Esta ação é <strong>irreversível</strong> e removerá:<br><div style="margin-top:6px">📅 ${exCount} exercício${exCount!==1?'s':''} fiscal${exCount!==1?'is':''}</div>${loteInfo}<div>🗃 Todos os dados de RRA, GCAP, PERDCOMP e PROCESSO vinculados</div>`;
+    `⚠️ Esta ação é <strong>irreversível</strong> e removerá:<br><div style="margin-top:6px">📅 ${exCount} exercício${exCount!==1?'s':''} fiscal${exCount!==1?'is':''}</div>${loteInfo}<div>🗃 Todos os dados de PERDCOMP e PROCESSO vinculados</div>`;
   _deleteTargetId=id;
   document.getElementById('modal-delete-confirm').style.display='flex';
 }
@@ -3920,8 +3830,6 @@ function renderSidebarStats(){
   const malha=countByCls('malha');
   const per=allClients.filter(c=>c.temPer).length;
   const dg=allClients.filter(c=>c.doencaGrave).length;
-  const rraCount=allClients.filter(clientHasRRA).length;
-  const gcapCount=allClients.filter(clientHasGCAP).length;
   const perCount=allClients.filter(clientHasPer).length;
   // Totais financeiros dos PERDCOMPs
   document.getElementById('sidebar-stats').innerHTML=`
@@ -3930,8 +3838,6 @@ function renderSidebarStats(){
     <div class="stat-row"><span class="stat-label" style="color:var(--red)">Em malha</span><span class="stat-val" style="color:var(--red)">${malha}</span></div>
     <div class="stat-row"><span class="stat-label" style="color:var(--yellow)">PERDCOMP</span><span class="stat-val" style="color:var(--yellow)">${perCount}</span></div>
     <div class="stat-row"><span class="stat-label" style="color:#dc2626">Doença Grave</span><span class="stat-val" style="color:#dc2626">${dg}</span></div>
-    <div class="stat-row"><span class="stat-label" style="color:var(--orange)">RRA</span><span class="stat-val" style="color:var(--orange)">${rraCount}</span></div>
-    <div class="stat-row"><span class="stat-label" style="color:var(--accent2)">GCAP</span><span class="stat-val" style="color:var(--accent2)">${gcapCount}</span></div>
     `;
 }
 
@@ -4148,8 +4054,6 @@ function gerarRelatorio(){
     if(doenca==='SIM'&&!c.doencaGrave)return false;
     if(doenca==='NAO'&&c.doencaGrave)return false;
     if(acesso!=='TODOS'&&c.acessoEcac!==acesso)return false;
-    if(caract==='RRA'&&!clientHasRRA(c))return false;
-    if(caract==='GCAP'&&!clientHasGCAP(c))return false;
     if(caract==='PER'&&!clientHasPer(c))return false;
     if(caract==='PROC'&&!clientHasProc(c))return false;
     if(caract==='PERR'&&!clientHasPerAReceber(c))return false;
