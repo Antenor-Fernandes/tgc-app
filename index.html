@@ -360,6 +360,7 @@ body.exercicios-level .full-edit-only{display:none!important}
   <nav class="nav" style="padding-top:2px;padding-bottom:10px;flex-shrink:0">
     <button class="nav-item" onclick="showRelatorio()" id="nav-relatorio"><span class="nav-icon">📊</span>Relatórios</button>
     <button class="nav-item" onclick="showView('importar')" id="nav-importar"><span class="nav-icon">📥</span>Backup / Importar</button>
+    <button class="nav-item" onclick="showView('consulta-ecac')" id="nav-consulta-ecac"><span class="nav-icon">📨</span>Consulta e-CAC</button>
   </nav>
 </aside>
 <!-- MAIN -->
@@ -606,7 +607,84 @@ body.exercicios-level .full-edit-only{display:none!important}
         <p style="font-size:11.5px;color:var(--text3)">Os dados ficam salvos no navegador (IndexedDB). Para migrar para outro computador, exporte o backup e importe no novo navegador.</p>
       </div>
     </div>
+    <div class="table-wrap" style="max-width:560px;margin-top:18px">
+      <div class="table-header"><span class="table-title">📨 Consulta e-CAC</span></div>
+      <div style="padding:22px;display:flex;flex-direction:column;gap:14px">
+        <p style="font-size:13.5px;color:var(--text2)">Importe o resultado da <strong>Consulta e-CAC</strong> (arquivo <code>comparacao_ecac_*.json</code> gerado pelo programa de consulta) para comparar a situação das declarações no e-CAC com o cadastro e destacar as divergências por exercício.</p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <label class="btn btn-primary" style="cursor:pointer">📨 Importar resultado e-CAC<input type="file" accept=".json" style="display:none" onchange="importEcac(event)"></label>
+          <button class="btn btn-ghost" id="ecac-btn-ultima2" onclick="ecacVerUltima()" style="display:none">🕘 Ver última comparação e-CAC</button>
+        </div>
+        <p style="font-size:11.5px;color:var(--text3)">O arquivo é gerado ao final da verificação, na pasta <code>consulta_ecac</code>, junto com a planilha. A importação apenas compara e, se você confirmar, marca os exercícios divergentes com a flag ⚠️ ATENÇÃO — nenhum outro dado é alterado.</p>
+      </div>
+    </div>
   </div>
+  <div class="content" id="view-consulta-ecac" style="display:none">
+    <div class="table-wrap" style="max-width:780px">
+      <div class="table-header"><span class="table-title">📨 Consulta e-CAC</span><span id="ecac-srv-badge" style="margin-left:auto;font-size:12px;font-weight:600;color:var(--text3)">—</span></div>
+      <div style="padding:22px;display:flex;flex-direction:column;gap:16px">
+        <p style="font-size:13.5px;color:var(--text2)">Verifica a situação das declarações no e-CAC (Portal MIR) e compara com o cadastro — direto daqui, sem a janela separada. Requer o servidor local de consulta rodando.</p>
+        <div id="ecac-srv-off" style="display:none;background:rgba(220,38,38,.06);border:1px solid rgba(220,38,38,.3);border-radius:9px;padding:12px;font-size:13px;color:var(--text2)">O servidor de consulta não está rodando. O jeito mais simples é abrir o programa pelo atalho <code>ABRIR PROGRAMA e-CAC.bat</code> (liga o servidor e o programa juntos). Em alternativa, abra <code>INICIAR SERVIDOR e-CAC.bat</code> na pasta <code>consulta_ecac</code> e deixe a janela aberta. Depois clique <button class="btn btn-ghost btn-sm" onclick="ecacPing()">Verificar conexão</button>.</div>
+        <div id="ecac-painel" style="display:none;flex-direction:column;gap:18px">
+          <div>
+            <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.6px">1 · Abrir o Chrome e logar</div>
+            <p style="font-size:12.5px;color:var(--text2);margin:4px 0 8px">Abre o Chrome no e-CAC. Faça o login com o certificado e deixe a janela aberta.</p>
+            <button class="btn btn-ghost" onclick="ecacAbrirChrome()">🌐 Abrir Chrome e logar</button>
+          </div>
+          <div>
+            <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.6px">2 · Quais clientes verificar</div>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-top:8px">
+              <div class="form-group" style="min-width:240px"><label>Grupo</label>
+                <select id="ecac-grupo" onchange="ecacPreview()">
+                  <option value="acesso">Apenas com acesso (cert. ou procuração)</option>
+                  <option value="malha">Apenas em malha</option>
+                  <option value="fila">Apenas em fila de restituição</option>
+                  <option value="acesso_malha">Com acesso e em malha</option>
+                  <option value="acesso_fila">Com acesso e em fila</option>
+                  <option value="todos">Todos os clientes (PF)</option>
+                </select></div>
+              <div class="form-group" style="min-width:170px"><label>Filtrar por nome</label>
+                <input type="text" id="ecac-filtro" oninput="ecacPreview()" placeholder="opcional"></div>
+              <div class="form-group" style="min-width:200px"><label>Começar a partir de (nome ou CPF)</label>
+                <input type="text" id="ecac-comecar" oninput="ecacPreview()" placeholder="retomar de um cliente"></div>
+              <div class="form-group" style="width:110px"><label>Pausa (s)</label>
+                <input type="number" id="ecac-delay" value="4" min="0" max="30"></div>
+              <div class="form-group" style="width:110px"><label>Tentativas</label>
+                <input type="number" id="ecac-tent" value="4" min="1" max="8"></div>
+            </div>
+            <div id="ecac-preview" style="font-size:12.5px;color:var(--text2);margin-top:8px"></div>
+          </div>
+          <div>
+            <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.6px">3 · Verificação</div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+              <button class="btn btn-primary" id="ecac-btn-iniciar" onclick="ecacIniciar()">▶️ Iniciar verificação</button>
+              <button class="btn btn-ghost" id="ecac-btn-pausar" onclick="ecacPausar()" style="display:none">⏸ Pausar</button>
+              <button class="btn btn-ghost" id="ecac-btn-parar" onclick="ecacParar()" style="display:none">⏹ Parar</button>
+              <button class="btn btn-ghost" id="ecac-btn-continuar" onclick="ecacContinuar()" style="display:none">🔄 Continuar (após relogar)</button>
+              <button class="btn btn-primary" id="ecac-btn-result" onclick="ecacAbrirResultado()" style="display:none">📊 Ver comparação</button>
+              <button class="btn btn-ghost" id="ecac-btn-ultima" onclick="ecacVerUltima()" style="display:none">🕘 Última comparação</button>
+            </div>
+            <div id="ecac-prog-wrap" style="display:none;margin-top:12px">
+              <div style="height:8px;background:var(--surface2);border-radius:6px;overflow:hidden"><div id="ecac-prog-bar" style="height:100%;width:0;background:var(--accent);transition:width .3s"></div></div>
+              <div id="ecac-prog-txt" style="font-size:12px;color:var(--text3);margin-top:6px"></div>
+              <pre id="ecac-log" style="margin-top:8px;max-height:240px;overflow:auto;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px;font-size:11.5px;white-space:pre-wrap;font-family:'DM Mono',monospace;color:var(--text2)"></pre>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- MODAL COMPARAÇÃO e-CAC -->
+<div class="modal-overlay" id="modal-ecac" style="display:none">
+<div class="modal" style="max-width:920px">
+  <div class="modal-head">
+    <span class="modal-title">📨 Comparação e-CAC × Cadastro</span>
+    <button class="close-btn" onclick="closeEcacModal()">✕</button>
+  </div>
+  <div class="modal-body" id="ecac-modal-body"></div>
 </div>
 </div>
 
@@ -1107,13 +1185,15 @@ function applyReadOnlyUI(){
   // "Backup / Importar" apenas para admin (evita importação indevida)
   const navImportar=document.getElementById('nav-importar');
   if(navImportar)navImportar.style.display=(currentUser==='admin')?'flex':'none';
+  const navEcac=document.getElementById('nav-consulta-ecac');
+  if(navEcac)navEcac.style.display=(currentUser==='admin')?'flex':'none';
 
   // Sidebar: oculta tudo quando não logado (dados ainda não foram renderizados)
   const aside=document.querySelector('aside.sidebar');
   if(aside){
     // Mostra a nav de declarações e relatórios para qualquer usuário logado
     aside.querySelectorAll('.nav-item').forEach(el=>{
-      if(el.id==='nav-importar')return; // já tratado acima
+      if(el.id==='nav-importar'||el.id==='nav-consulta-ecac')return; // já tratado acima
       el.style.display=logado?'flex':'none';
     });
   }
@@ -1929,6 +2009,8 @@ function showView(v){
   // topbar sempre visível e completo
   document.getElementById('topbar').style.display='flex';
   if(v==='lotes')renderLotes();
+  if(v==='consulta-ecac')ecacPing();
+  if(v==='importar'||v==='consulta-ecac')_ecacRefreshUltimaBtns();
 }
 function showDecl(status){
   if(currentDeclStatuses.has(status)){
@@ -3131,10 +3213,11 @@ function openExModal(clientId,year,focusPerIdx){
   document.getElementById('ex-valor-rec').value=rec.valor?rec.valor.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}):'';
   document.getElementById('ex-lote-hint').style.display='none';
   if(rec.data||rec.valor) updateExLoteHint();
-  // Carregar DDA (apenas para exercícios em malha)
+  // Carregar DDA — mostra se for Em Malha OU se já houver dado de DDA (preservado)
   const isMalha=catMatch==='EM MALHA';
   const dda=c?.dda?.[year]||{};
-  document.getElementById('ex-dda-box').style.display=isMalha?'block':'none';
+  const temDDA=!!(dda.feito||dda.data);
+  document.getElementById('ex-dda-box').style.display=(isMalha||temDDA)?'block':'none';
   document.getElementById('ex-dda-feito').checked=!!(dda.feito);
   document.getElementById('ex-dda-data-row').style.display=dda.feito?'block':'none';
   document.getElementById('ex-dda-data').value=dda.data||'';
@@ -3184,13 +3267,11 @@ function toggleExCatBoxes(){
   const cat=document.getElementById('ex-cat').value;
   const ddaBox=document.getElementById('ex-dda-box');
   const impugBox=document.getElementById('ex-impug-box');
-  ddaBox.style.display=cat==='EM MALHA'?'block':'none';
+  // DDA: mostra se for Em Malha OU se já houver dado de DDA (preserva mesmo trocando o status)
+  const temDDA=document.getElementById('ex-dda-feito').checked||document.getElementById('ex-dda-data').value.trim();
+  ddaBox.style.display=(cat==='EM MALHA'||temDDA)?'block':'none';
   impugBox.style.display=cat==='IMPUGNAÇÃO'?'block':'none';
-  if(cat!=='EM MALHA'){
-    document.getElementById('ex-dda-feito').checked=false;
-    document.getElementById('ex-dda-data').value='';
-    document.getElementById('ex-dda-data-row').style.display='none';
-  }
+  // Não limpa mais os dados do DDA ao trocar de categoria (preserva DDA feito/data)
   if(cat!=='IMPUGNAÇÃO'){
     document.getElementById('ex-impug-data').value='';
   }
@@ -3332,9 +3413,9 @@ async function saveExModal(){
   }else{
     delete c.recebimentos[yr];
   }
-  // Salva DDA
+  // Salva DDA — preserva sempre que houver dado, independente da categoria
   if(!c.dda)c.dda={};
-  if(cat==='EM MALHA'){
+  {
     const ddaFeito=document.getElementById('ex-dda-feito').checked;
     const ddaData=document.getElementById('ex-dda-data').value.trim();
     if(ddaFeito||ddaData){
@@ -3342,8 +3423,6 @@ async function saveExModal(){
     }else{
       delete c.dda[yr];
     }
-  }else{
-    delete c.dda[yr];
   }
   // Salva Impugnação
   if(!c.impugnacoes)c.impugnacoes={};
@@ -3896,6 +3975,225 @@ async function importJSON(e){
     }catch(err){showToast('❌ Erro: '+err.message,'error')}
   };
   reader.readAsText(file);
+}
+
+
+// ── IMPORTAÇÃO RESULTADO e-CAC ────────────────────────────────────────────────
+let _ecacCompare=null;
+function _digits(s){return String(s||'').replace(/\D/g,'');}
+function importEcac(e){
+  const file=e.target.files[0]; if(!file) return;
+  const reader=new FileReader();
+  reader.onload=ev=>{
+    try{
+      const data=JSON.parse(ev.target.result);
+      if(data.fonte!=='consulta_ecac'||!Array.isArray(data.clientes))
+        throw new Error('Arquivo não é um resultado de consulta e-CAC.');
+      _ecacCompare=buildEcacCompare(data);
+      _ecacSaveUltima(data);
+      renderEcacModal();
+      document.getElementById('modal-ecac').style.display='flex';
+    }catch(err){showToast('❌ '+err.message,'error');}
+    finally{e.target.value='';}
+  };
+  reader.readAsText(file);
+}
+function buildEcacCompare(data){
+  const byDigits=new Map();
+  for(const c of allClients){const d=_digits(c.cpfCnpj); if(d)byDigits.set(d,c);}
+  const matched=[], naoEncontrados=[]; let totalDiv=0;
+  for(const r of (data.clientes||[])){
+    const d=r.cpf_digits||_digits(r.cpf);
+    const c=d?byDigits.get(d):null;
+    if(!c){naoEncontrados.push({nome:r.nome,cpf:r.cpf}); continue;}
+    const divs=[], outros=[];
+    for(const ano of Object.keys(r.exercicios||{})){
+      const info=r.exercicios[ano]||{};
+      if(info.divergente){divs.push({ano,ecac:info.ecac,programa:info.programa}); totalDiv++;}
+      else if(info.situacao==='ausente_ecac'||info.situacao==='incerto'){
+        outros.push({ano,ecac:info.ecac,programa:info.programa,situacao:info.situacao});
+      }
+    }
+    matched.push({c,r,divs,outros});
+  }
+  return {gerado_em:data.gerado_em||'',total:(data.clientes||[]).length,matched,naoEncontrados,totalDiv};
+}
+function closeEcacModal(){const m=document.getElementById('modal-ecac');if(m)m.style.display='none';}
+function renderEcacModal(){
+  const x=_ecacCompare; if(!x)return;
+  const body=document.getElementById('ecac-modal-body');
+  const comDiv=x.matched.filter(m=>m.divs.length);
+  const comOutros=x.matched.filter(m=>!m.divs.length&&m.outros.length);
+  const stat=(lbl,val,color)=>`<div style="flex:1;min-width:110px;background:var(--bg);border:1px solid var(--border);border-radius:9px;padding:10px 12px"><div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">${lbl}</div><div style="font-size:20px;font-weight:700;color:${color||'var(--text)'}">${val}</div></div>`;
+  let h='';
+  h+=`<div style="font-size:12px;color:var(--text3)">Arquivo gerado em ${esc(x.gerado_em)||'—'}</div>`;
+  h+=`<div style="display:flex;gap:8px;flex-wrap:wrap">${stat('No arquivo',x.total)}${stat('Casados por CPF',x.matched.length,'var(--green)')}${stat('Não encontrados',x.naoEncontrados.length,x.naoEncontrados.length?'var(--yellow)':'var(--text)')}${stat('Divergências',x.totalDiv,x.totalDiv?'var(--red)':'var(--green)')}</div>`;
+  const tbl=arr=>`<table style="width:100%;border-collapse:collapse;font-size:12.5px;margin-top:6px"><tr style="color:var(--text3);font-size:10.5px;text-transform:uppercase;letter-spacing:.5px"><td style="padding:4px 8px">Ano</td><td style="padding:4px 8px">e-CAC</td><td style="padding:4px 8px">Programa</td></tr>${arr.map(d=>`<tr><td style="padding:4px 8px;font-weight:600">${esc(d.ano)}</td><td style="padding:4px 8px;color:var(--red)">${esc(d.ecac||'—')}</td><td style="padding:4px 8px;color:var(--text2)">${esc(d.programa||'—')}</td></tr>`).join('')}</table>`;
+  if(comDiv.length){
+    h+=`<div style="font-weight:700;color:var(--red);margin-top:8px">⚠️ Divergências (e-CAC × programa)</div>`;
+    for(const m of comDiv){
+      h+=`<div style="border:1px solid rgba(220,38,38,.3);border-radius:9px;padding:10px;margin-top:6px"><div style="font-weight:700">${esc(m.c.nome)} <span style="color:var(--text3);font-weight:400;font-size:12px">${esc(m.c.cpfCnpj)}</span></div>${tbl(m.divs)}</div>`;
+    }
+  }else{
+    h+=`<div style="color:var(--green);margin-top:8px">✅ Nenhuma divergência entre os clientes casados.</div>`;
+  }
+  if(comOutros.length){
+    h+=`<details style="margin-top:10px"><summary style="cursor:pointer;font-weight:700;color:var(--yellow)">🔎 Conferir — sem divergência de status (${comOutros.length})</summary>`;
+    for(const m of comOutros){
+      h+=`<div style="border:1px solid var(--border);border-radius:9px;padding:8px 10px;margin-top:6px"><div style="font-weight:600">${esc(m.c.nome)}</div>${m.outros.map(o=>`<div style="font-size:12px;color:var(--text2)">${esc(o.ano)}: ${o.situacao==='ausente_ecac'?'no programa, ausente no e-CAC':'status e-CAC não reconhecido'} — e-CAC: ${esc(o.ecac||'—')} · prog: ${esc(o.programa||'—')}</div>`).join('')}</div>`;
+    }
+    h+=`</details>`;
+  }
+  if(x.naoEncontrados.length){
+    h+=`<details style="margin-top:8px"><summary style="cursor:pointer;font-weight:700;color:var(--yellow)">Não encontrados no cadastro (${x.naoEncontrados.length})</summary><div style="font-size:12px;color:var(--text2);margin-top:6px">${x.naoEncontrados.map(n=>`${esc(n.nome)} (${esc(n.cpf)})`).join('<br>')}</div></details>`;
+  }
+  const canEdit=(typeof canEditExercicios==='function')?canEditExercicios():true;
+  h+=`<div style="font-size:11px;color:var(--text3);margin-top:10px">💾 Esta comparação fica salva no programa — você pode reabri-la depois em <strong>Consulta e-CAC › 🕘 Última comparação</strong>, mesmo sem marcar as divergências.</div>`;
+  h+=`<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px;border-top:1px solid var(--border);padding-top:12px">${canEdit&&x.totalDiv?`<button class="btn btn-primary" onclick="applyEcacMarks()">⚠️ Marcar ${x.totalDiv} divergência(s) com ATENÇÃO</button>`:''}<button class="btn btn-ghost" onclick="closeEcacModal()">Fechar</button></div>`;
+  body.innerHTML=h;
+}
+async function applyEcacMarks(){
+  if(!_ecacCompare)return;
+  if(typeof canEditExercicios==='function'&&!canEditExercicios()){showToast('Sem permissão para editar.','error');return;}
+  let nC=0,nE=0;
+  for(const m of _ecacCompare.matched){
+    if(!m.divs.length)continue;
+    const c=m.c; if(!c.exAtencao)c.exAtencao={}; let changed=false;
+    for(const dv of m.divs){if(!c.exAtencao[dv.ano]){c.exAtencao[dv.ano]=true;changed=true;nE++;}}
+    if(changed){await dbPut('clientes',c);nC++;}
+  }
+  allClients=await dbAll('clientes');
+  allClients.sort((a,b)=>(a.nome||'').localeCompare(b.nome||'','pt-BR'));
+  filterClients();renderFilterChips();renderSidebarStats();
+  ghSave();
+  showToast(`✅ ${nE} exercício(s) marcados em ${nC} cliente(s)`,'success');
+  closeEcacModal();
+}
+
+// ── CONSULTA e-CAC AO VIVO (servidor local, opção 2) ─────────────────────────
+const ECAC_SRV='http://localhost:8765';
+let _ecacSel=[], _ecacPoll=null, _ecacDone=null;
+function _ecacFetch(path,opt){return fetch(ECAC_SRV+path,opt);}
+async function ecacPing(){
+  const badge=document.getElementById('ecac-srv-badge');
+  const off=document.getElementById('ecac-srv-off');
+  const painel=document.getElementById('ecac-painel');
+  try{
+    const r=await fetch(ECAC_SRV+'/ping',{cache:'no-store'}); if(!r.ok)throw 0;
+    badge.textContent='● servidor conectado'; badge.style.color='var(--green)';
+    off.style.display='none'; painel.style.display='flex';
+    ecacPreview(); ecacStatusOnce();
+  }catch(e){
+    badge.textContent='● servidor offline'; badge.style.color='var(--red)';
+    off.style.display='block'; painel.style.display='none';
+  }
+}
+async function ecacAbrirChrome(){
+  try{const r=await _ecacFetch('/abrir-chrome',{method:'POST'});const j=await r.json();if(j.erro)throw new Error(j.erro);showToast('Chrome aberto — faça o login e deixe a janela aberta','success');}
+  catch(e){showToast('❌ '+(e.message||'Servidor offline'),'error');}
+}
+function _ecacSemAcento(s){return String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase();}
+function _ecacTemAcesso(a){a=_ecacSemAcento(a);if(!a)return false;if(a.includes('CANCELAD')||a.includes('SEM ACESSO'))return false;if(/CERT\w*\.?\s*DIG/.test(a))return true;if(a.includes('PROCURA'))return true;return false;}
+function _ecacTemMalha(c){return Object.values(c.exercicios||{}).some(v=>_ecacSemAcento(v).includes('MALHA'));}
+function _ecacTemFila(c){return Object.values(c.exercicios||{}).some(v=>{const s=_ecacSemAcento(v);return (s.includes('FILA')&&s.includes('RESTITUI'))||s.includes('EM FILA');});}
+function ecacSelecionar(){
+  const g=document.getElementById('ecac-grupo').value;
+  const nome=(document.getElementById('ecac-filtro').value||'').trim().toLowerCase();
+  let sel=allClients.filter(c=>_digits(c.cpfCnpj).length===11 && (c.tipo==='PF'||!c.tipo));
+  if(g==='acesso'||g==='acesso_malha'||g==='acesso_fila')sel=sel.filter(c=>_ecacTemAcesso(c.acessoEcac));
+  if(g==='malha'||g==='acesso_malha')sel=sel.filter(_ecacTemMalha);
+  if(g==='fila'||g==='acesso_fila')sel=sel.filter(_ecacTemFila);
+  if(nome)sel=sel.filter(c=>(c.nome||'').toLowerCase().includes(nome));
+  sel.sort((a,b)=>(a.nome||'').localeCompare(b.nome||'','pt-BR'));
+  const de=(document.getElementById('ecac-comecar')?.value||'').trim();
+  if(de){
+    const ded=_digits(de), del=de.toLowerCase();
+    const idx=sel.findIndex(c=>(ded&&_digits(c.cpfCnpj).includes(ded))||(del&&(c.nome||'').toLowerCase().includes(del)));
+    if(idx>=0)sel=sel.slice(idx);
+  }
+  return sel;
+}
+function ecacPreview(){
+  _ecacSel=ecacSelecionar();
+  const el=document.getElementById('ecac-preview'); if(!el)return;
+  const amostra=_ecacSel.slice(0,8).map(c=>c.nome).join(', ');
+  el.innerHTML=`<strong>${_ecacSel.length}</strong> cliente(s) selecionado(s)${_ecacSel.length?': '+esc(amostra)+(_ecacSel.length>8?'…':''):''}`;
+}
+async function ecacIniciar(){
+  if(!_ecacSel.length){showToast('Nenhum cliente selecionado','error');return;}
+  const clientes=_ecacSel.map(c=>({nome:c.nome,cpf:_digits(c.cpfCnpj),cpf_fmt:c.cpfCnpj,exercicios:c.exercicios||{}}));
+  const delay=parseFloat(document.getElementById('ecac-delay').value)||0;
+  const tentativas=parseInt(document.getElementById('ecac-tent').value)||1;
+  try{
+    const r=await _ecacFetch('/iniciar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({clientes,delay,tentativas})});
+    const js=await r.json(); if(js.erro)throw new Error(js.erro);
+    _ecacDone=null;
+    document.getElementById('ecac-prog-wrap').style.display='block';
+    document.getElementById('ecac-btn-result').style.display='none';
+    _ecacRunBtns(true); ecacStartPoll();
+  }catch(e){showToast('❌ '+(e.message||'Servidor offline'),'error');}
+}
+function _ecacRunBtns(running){
+  document.getElementById('ecac-btn-iniciar').style.display=running?'none':'inline-flex';
+  document.getElementById('ecac-btn-pausar').style.display=running?'inline-flex':'none';
+  document.getElementById('ecac-btn-parar').style.display=running?'inline-flex':'none';
+}
+function ecacStartPoll(){clearInterval(_ecacPoll);_ecacPoll=setInterval(ecacStatusOnce,1000);ecacStatusOnce();}
+async function ecacStatusOnce(){
+  let js;
+  try{const r=await fetch(ECAC_SRV+'/status',{cache:'no-store'});js=await r.json();}catch(e){return;}
+  if(!js||js.estado==='idle')return;
+  const bar=document.getElementById('ecac-prog-bar');
+  const txt=document.getElementById('ecac-prog-txt');
+  const logEl=document.getElementById('ecac-log');
+  if(js.total){bar.style.width=Math.round((js.idx/js.total)*100)+'%';}
+  txt.textContent=`${js.estado} · ${js.idx}/${js.total}${js.atual?(' · '+js.atual):''}`;
+  if(Array.isArray(js.log)){logEl.textContent=js.log.join('\n');logEl.scrollTop=logEl.scrollHeight;}
+  document.getElementById('ecac-btn-continuar').style.display=(js.estado==='aguardando_relogin')?'inline-flex':'none';
+  if(['rodando','pausado','aguardando_relogin'].includes(js.estado)){
+    document.getElementById('ecac-prog-wrap').style.display='block'; _ecacRunBtns(true);
+  }
+  if(js.estado==='concluido'||js.estado==='erro'){
+    clearInterval(_ecacPoll);_ecacPoll=null; _ecacRunBtns(false);
+    if(js.estado==='erro'){showToast('❌ '+(js.erro||'Erro'),'error');return;}
+    _ecacDone=js;
+    document.getElementById('ecac-btn-result').style.display='inline-flex';
+    showToast(`✅ Concluído: ${js.resultados.length} cliente(s), ${js.totalDiv} divergência(s)`,'success');
+    ecacAbrirResultado();
+  }
+}
+function ecacPausar(){
+  const b=document.getElementById('ecac-btn-pausar');
+  if(b.dataset.paused==='1'){_ecacFetch('/retomar',{method:'POST'});b.textContent='⏸ Pausar';b.dataset.paused='';}
+  else{_ecacFetch('/pausar',{method:'POST'});b.textContent='▶️ Retomar';b.dataset.paused='1';}
+}
+function ecacParar(){_ecacFetch('/parar',{method:'POST'});showToast('Parando após o cliente atual…','success');}
+function ecacContinuar(){_ecacFetch('/continuar',{method:'POST'});document.getElementById('ecac-btn-continuar').style.display='none';}
+function _ecacUltima(){try{const s=localStorage.getItem('cadastroIR_ecacUltima');return s?JSON.parse(s):null;}catch(e){return null;}}
+function _ecacSaveUltima(data){
+  try{localStorage.setItem('cadastroIR_ecacUltima',JSON.stringify({fonte:'consulta_ecac',gerado_em:data.gerado_em||new Date().toLocaleString('pt-BR'),clientes:data.clientes||[]}));}
+  catch(e){showToast('Não consegui salvar a comparação localmente (tamanho excedido).','error');}
+  _ecacRefreshUltimaBtns();
+}
+function _ecacRefreshUltimaBtns(){
+  const u=_ecacUltima();
+  const lbl=u?('🕘 Última comparação'+(u.gerado_em?(' ('+u.gerado_em+')'):'')):'';
+  ['ecac-btn-ultima','ecac-btn-ultima2'].forEach(id=>{const b=document.getElementById(id);if(b){b.style.display=u?'inline-flex':'none';if(u)b.textContent=lbl;}});
+}
+function ecacVerUltima(){
+  const u=_ecacUltima();
+  if(!u){showToast('Nenhuma comparação salva ainda.','error');return;}
+  _ecacCompare=buildEcacCompare(u);
+  renderEcacModal();
+  document.getElementById('modal-ecac').style.display='flex';
+}
+function ecacAbrirResultado(){
+  if(!_ecacDone||!Array.isArray(_ecacDone.resultados))return;
+  const _d={fonte:'consulta_ecac',gerado_em:_ecacDone.gerado_em,clientes:_ecacDone.resultados};
+  _ecacCompare=buildEcacCompare(_d);
+  _ecacSaveUltima(_d);
+  renderEcacModal();
+  document.getElementById('modal-ecac').style.display='flex';
 }
 
 // ── QUICK EDIT ────────────────────────────────────────────────────────────────
