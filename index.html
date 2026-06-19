@@ -374,6 +374,7 @@ body.exercicios-level .full-edit-only{display:none!important}
       </div>
       <span id="gh-status-badge" class="gh-status" style="display:none"></span>
       <span id="save-indicator" style="display:none;font-size:11.5px;padding:2px 8px;border-radius:10px;font-weight:500"></span>
+      <button id="btn-undo" class="btn btn-ghost btn-sm" onclick="desfazer()" title="Desfazer última alteração salva" style="display:none;align-items:center;gap:4px;flex-shrink:0;white-space:nowrap">↩️ Desfazer</button>
       <span id="readonly-badge" class="readonly-badge" style="display:none">🔒 Modo Consulta</span>
       <div class="topbar-sep"></div>
       <button class="btn btn-ghost btn-sm" onclick="showView('lotes')" id="btn-lotes" style="flex-shrink:0;white-space:nowrap">📋 Lotes</button>
@@ -1287,6 +1288,69 @@ function setSaveIndicator(state,msg){
     el.style.display='none';
   }
 }
+// ── DESFAZER (undo das gravações desta sessão) ────────────────────────────────
+let _undoStack=[];        // snapshots anteriores (deep copies); mais recente no fim
+let _undoBaseline=null;   // estado atualmente persistido nesta sessão
+let _suppressUndoCapture=false;
+const UNDO_MAX=20;
+function _snapshotAtual(){
+  return JSON.parse(JSON.stringify({clientes:allClients,lotes:allLotes,access:accessList}));
+}
+function _captureUndoAfterSave(){
+  // Chamado após cada gravação bem-sucedida: empilha o estado anterior.
+  if(_suppressUndoCapture)return;
+  if(_undoBaseline!==null){
+    _undoStack.push(_undoBaseline);
+    while(_undoStack.length>UNDO_MAX)_undoStack.shift();
+  }
+  _undoBaseline=_snapshotAtual();
+  updateUndoButton();
+}
+function updateUndoButton(){
+  const b=document.getElementById('btn-undo');
+  if(!b)return;
+  if(_undoStack.length>0&&getNivel()!=='visualizar'){
+    b.style.display='inline-flex';
+    b.title=`Desfazer última alteração salva (${_undoStack.length} passo${_undoStack.length>1?'s':''} disponíve${_undoStack.length>1?'is':'l'})`;
+  }else{
+    b.style.display='none';
+  }
+}
+async function _resyncDB(){
+  // Sincroniza o IndexedDB local com o estado em memória (clientes keyPath=id, lotes keyPath=data).
+  // Necessário porque a persistência local é a fonte usada no reload quando o GitHub está indisponível.
+  try{
+    const dbClientes=await dbAll('clientes');
+    const idsMem=new Set(allClients.map(c=>c.id));
+    for(const c of allClients)await dbPut('clientes',c);
+    for(const c of dbClientes)if(!idsMem.has(c.id))await dbDelete('clientes',c.id);
+    const dbLotes=await dbAll('lotes');
+    const datasMem=new Set(allLotes.map(l=>l.data));
+    for(const l of allLotes)await dbPut('lotes',l);
+    for(const l of dbLotes)if(!datasMem.has(l.data))await dbDelete('lotes',l.data);
+  }catch(e){console.error('[undo] resyncDB falhou:',e);}
+}
+async function desfazer(){
+  if(getNivel()==='visualizar'){showToast('Sem permissão para editar','error');return;}
+  if(!_undoStack.length){showToast('Nada para desfazer','info');return;}
+  if(!confirm('Desfazer a última alteração salva?\n\nTodos os dados voltam ao estado imediatamente anterior à última gravação.'))return;
+  const prev=_undoStack.pop();
+  allClients=Array.isArray(prev.clientes)?prev.clientes:[];
+  allLotes=Array.isArray(prev.lotes)?prev.lotes:[];
+  if(Array.isArray(prev.access))accessList=prev.access;
+  refreshCurrentView();
+  // 1) Persiste LOCAL (IndexedDB) — é o que sobrevive ao reload mesmo sem GitHub
+  await _resyncDB();
+  try{localStorage.setItem('cadastroIR_accessList',JSON.stringify(accessList));}catch(e){}
+  // 2) Tenta gravar no GitHub (melhor esforço, igual a uma edição normal)
+  _suppressUndoCapture=true;
+  let ok=false;
+  try{ok=await ghSave();}catch(e){ok=false;}
+  _suppressUndoCapture=false;
+  _undoBaseline=_snapshotAtual();
+  updateUndoButton();
+  showToast(ok?'↩️ Alteração desfeita e salva':'↩️ Desfeito e salvo localmente (GitHub indisponível)',ok?'success':'info');
+}
 async function ghSave(){
   const wToken=getWriteToken();
   if(!wToken||!ghCfg?.owner||!ghCfg?.repo){
@@ -1310,6 +1374,7 @@ async function ghSave(){
       ghSHA=j.content.sha;
       try{localStorage.setItem('cadastroIR_ghSHA',ghSHA);}catch(e){}
       setSaveIndicator('ok');
+      _captureUndoAfterSave();
       return true;
     }else{
       let errMsg=`HTTP ${r.status}`;
@@ -1334,6 +1399,7 @@ async function ghSave(){
               ghSHA=j2.content.sha;
               try{localStorage.setItem('cadastroIR_ghSHA',ghSHA);}catch(e){}
               setSaveIndicator('ok');
+              _captureUndoAfterSave();
               return true;
             }
           }
@@ -1959,6 +2025,8 @@ async function init(){
     console.log(`[mig] Outro→Processada (v2 valor-data): ${_oCnt2} clientes atualizados`);
   }
   // ── FIM MIGRAÇÃO ──
+  // Baseline do "Desfazer": estado carregado, para que a 1ª alteração da sessão seja reversível
+  _undoBaseline=_snapshotAtual();
   filteredClients=[...allClients];
   applyReadOnlyUI(); // re-aplica após carregar accessList
   // Exige login antes de renderizar qualquer dado
