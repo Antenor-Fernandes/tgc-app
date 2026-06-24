@@ -42,6 +42,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 .btn-ghost{background:transparent;color:var(--text2);border:1px solid var(--border)}.btn-ghost:hover{background:var(--surface2);color:var(--text)}
 .btn-sm{padding:4px 10px;font-size:11.5px}
 .btn-danger{background:rgba(239,68,68,.12);color:var(--red);border:1px solid rgba(239,68,68,.25)}.btn-danger:hover{background:rgba(239,68,68,.22)}
+.date-invalid{border-color:var(--red) !important;background:rgba(220,38,38,.07) !important;color:var(--red) !important}
 .btn-yellow{background:rgba(245,158,11,.12);color:var(--yellow);border:1px solid rgba(245,158,11,.25)}.btn-yellow:hover{background:rgba(245,158,11,.22)}
 .filter-row{display:flex;gap:6px;flex-wrap:wrap}
 .filter-chip{padding:4px 11px;border-radius:20px;font-size:11.5px;font-weight:600;cursor:pointer;border:1px solid var(--border);background:var(--surface2);color:var(--text2);transition:all .15s}
@@ -2570,6 +2571,7 @@ async function deletePerEntry(id,idx){
 }
 async function savePerPanel(id,idx){
   const c=allClients.find(x=>x.id===id);if(!c)return;
+  if(!validarDatas([document.getElementById(`per-dtrans-${id}-${idx}`),document.getElementById(`per-drec-${id}-${idx}`)]))return;
   if(!Array.isArray(c.perdcomps))c.perdcomps=getPerdcomps(c);
   const numero=document.getElementById(`per-num-${id}-${idx}`)?.value.trim()||'';
   const valorPedido=parseBRLField(document.getElementById(`per-vpedido-${id}-${idx}`)?.value);
@@ -2756,11 +2758,59 @@ function toggleLote(idx){
 
 // ── NOVO LOTE ─────────────────────────────────────────────────────────────────
 let editingLoteIdx=null;
+function dateBRValida(v){
+  // v no formato dd/mm/aaaa completo. Retorna true só se for data de calendário real.
+  const m=/^(\d{2})\/(\d{2})\/(\d{4})$/.exec(v||'');
+  if(!m)return false;
+  const d=+m[1],mes=+m[2],a=+m[3];
+  if(mes<1||mes>12)return false;
+  if(a<1900||a>2200)return false;
+  const diasNoMes=[31,(a%4===0&&(a%100!==0||a%400===0))?29:28,31,30,31,30,31,31,30,31,30,31][mes-1];
+  if(d<1||d>diasNoMes)return false;
+  return true;
+}
+function validarDatas(scope){
+  // Bloqueia salvar quando há data preenchida e inválida. scope: Element (modal) ou array de inputs.
+  let campos;
+  if(Array.isArray(scope))campos=scope.filter(Boolean);
+  else campos=Array.from((scope||document).querySelectorAll('input[placeholder="dd/mm/aaaa"]'));
+  let primeiroInvalido=null;
+  campos.forEach(c=>{
+    const v=(c.value||'').trim();
+    if(v==='')return; // vazio é permitido
+    if(!dateBRValida(v)){ c.classList.add('date-invalid'); c.title='Data inválida'; if(!primeiroInvalido)primeiroInvalido=c; }
+  });
+  if(primeiroInvalido){
+    try{primeiroInvalido.focus();}catch(e){}
+    showToast('Data inválida — corrija os campos destacados em vermelho','error');
+    return false;
+  }
+  return true;
+}
 function maskDate(el){
-  let v=el.value.replace(/\D/g,'');
+  let v=el.value.replace(/\D/g,'').slice(0,8);
+  // Clamp dia (01-31) durante a digitação
+  if(v.length>=1){
+    if(v.length===1){ if(+v>3)v='0'+v; }
+    else { let dd=+v.slice(0,2); if(dd>31)dd=31; if(dd===0)dd=1; v=String(dd).padStart(2,'0')+v.slice(2); }
+  }
+  // Clamp mês (01-12) durante a digitação
+  if(v.length>=3){
+    if(v.length===3){ if(+v[2]>1)v=v.slice(0,2)+'0'+v[2]; }
+    else { let mm=+v.slice(2,4); if(mm>12)mm=12; if(mm===0)mm=1; v=v.slice(0,2)+String(mm).padStart(2,'0')+v.slice(4); }
+  }
   if(v.length>2)v=v.slice(0,2)+'/'+v.slice(2);
   if(v.length>5)v=v.slice(0,5)+'/'+v.slice(5,9);
   el.value=v;
+  // Validação de calendário real: marca campo quando data completa for impossível (ex.: 31/02/2025)
+  const completa=el.value.length===10;
+  if(completa&&!dateBRValida(el.value)){
+    el.classList.add('date-invalid');
+    el.title='Data inválida';
+  }else{
+    el.classList.remove('date-invalid');
+    if(el.title==='Data inválida')el.title='';
+  }
 }
 function openNovoLoteModal(){
   editingLoteIdx=null;
@@ -2874,6 +2924,7 @@ function fmtBRLInput(el){
   if(!isNaN(v)&&v>=0)el.value=v.toFixed(2).replace('.',',');
 }
 async function salvarNovoLote(){
+  if(!validarDatas(document.getElementById('modal-novo-lote')))return;
   const data=document.getElementById('nl-data').value.trim();
   if(!data||data.length<10){showToast('Informe a data do lote','error');return;}
   const desc=document.getElementById('nl-desc').value.trim();
@@ -3458,6 +3509,7 @@ function collectExProcEntries(){
 }
 async function saveExModal(){
   if(!canEditExercicios()){showToast('Sem permissão para editar exercícios','error');return;}
+  if(!validarDatas(document.getElementById('modal-ex')))return;
   const c=allClients.find(x=>x.id===exEditId);if(!c)return;
   const yr=exEditYear||document.getElementById('ex-year-disp').value;
   const det=document.getElementById('ex-detalhe').value.trim();
@@ -3773,6 +3825,7 @@ function addExRow(){
 }
 async function saveClient(){
   if(!canEditFields()){showToast('Sem permissão para editar cadastros de clientes','error');return;}
+  if(!validarDatas(document.getElementById('modal-cliente')))return;
   const tipo=document.getElementById('f-tipo').value;
   const doc=document.getElementById('f-doc').value.trim();
   const nome=document.getElementById('f-nome').value.trim();
