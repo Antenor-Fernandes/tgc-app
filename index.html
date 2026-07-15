@@ -2377,6 +2377,20 @@ function matchesFilter(c,key){
   if(key==='MALHA_SEM_DDA')return clientHasMalhaSemDDA(c);
   return true;
 }
+function clientSearchBlob(c){
+  // Concatena recursivamente TODO texto armazenado no cliente (nome, email, cidade, observações,
+  // exercícios/detalhes, honorários, PER/DCOMP, processos, etc.) — busca independe de onde o dado está.
+  const parts=[];
+  const walk=v=>{
+    if(v==null)return;
+    const t=typeof v;
+    if(t==='string'||t==='number'){parts.push(v);return;}
+    if(Array.isArray(v)){for(const x of v)walk(x);return;}
+    if(t==='object'){for(const k in v){if(k==='_blob')continue;walk(v[k]);}return;}
+  };
+  walk(c);
+  return deacc(parts.join(' '));
+}
 function filterClients(){
   try{
   const q=deacc(document.getElementById('search-input')?.value||'').trim();
@@ -2384,13 +2398,9 @@ function filterClients(){
   filteredClients=allClients.filter(c=>{
     try{
     const mt=!q
-      ||deacc(c.nome).includes(q)
+      ||clientSearchBlob(c).includes(q)
       ||(c.cpfCnpj||'').replace(/\D/g,'').includes(qDigits||q)
-      ||deacc(c.cpfCnpj).includes(q)
-      ||deacc(c.email).includes(q)
-      ||(qDigits&&(c.telefone||'').replace(/\D/g,'').includes(qDigits))
-      ||deacc(c.cidade).includes(q)
-      ||deacc(c.observacoes).includes(q);
+      ||(qDigits&&(c.telefone||'').replace(/\D/g,'').includes(qDigits));
     if(!mt)return false;}catch(e){return false;}
     if(activeFilters.size>0){
       return [...activeFilters].some(k=>matchesFilter(c,k));
