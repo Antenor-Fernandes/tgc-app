@@ -23,6 +23,15 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 .nav-section-label{padding:10px 18px 4px;font-size:9px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,255,255,.35)}
 .nav-section-sep{height:1px;background:rgba(255,255,255,.1);margin:4px 14px}
 .nav-item.active{background:rgba(255,255,255,.18);color:#fff}
+.nav-count{margin-left:auto;flex-shrink:0;font-family:'DM Mono',monospace;font-size:10px;font-weight:700;background:rgba(255,255,255,.12);color:rgba(255,255,255,.8);border-radius:9px;padding:1px 7px;min-width:16px;text-align:center;line-height:1.5}
+.nav-item.active .nav-count{background:rgba(255,255,255,.25);color:#fff}
+.nav-count.zero{opacity:.3}
+.summary-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:14px}
+.summary-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px;cursor:pointer;transition:all .15s;border-left:4px solid var(--accent)}
+.summary-card:hover{box-shadow:var(--shadow);transform:translateY(-1px)}
+.summary-card .sc-num{font-family:'Syne',sans-serif;font-size:24px;font-weight:800;line-height:1.1}
+.summary-card .sc-label{font-size:11px;font-weight:600;color:var(--text2);margin-top:2px}
+.summary-card .sc-sub{font-size:10px;color:var(--text3);margin-top:1px}
 .nav-icon{font-size:14px;width:17px;text-align:center}
 .sidebar-footer{padding:8px 10px;border-top:1px solid rgba(255,255,255,.12)}
 .stat-row{display:flex;justify-content:space-between;align-items:center;font-size:11px;padding:1px 4px}
@@ -339,7 +348,6 @@ body.exercicios-level .full-edit-only{display:none!important}
     <div class="logo-title">TGC</div>
     <div class="logo-sub">Gestão de Clientes</div>
   </div>
-  <div class="nav-section-label">Declarações</div>
   <!-- Clientes: sempre visível, não rola -->
   <nav class="nav" style="flex-shrink:0">
     <button class="nav-item active" onclick="showView('lista')" id="nav-lista"><span class="nav-icon">👥</span>Clientes</button>
@@ -347,14 +355,19 @@ body.exercicios-level .full-edit-only{display:none!important}
   <div class="nav-section-sep" style="margin:2px 14px"></div>
   <!-- Declarações: rola se não couber -->
   <nav class="nav-decl">
-    <button class="nav-item" onclick="showDecl('transmitida')" id="nav-transmitida"><span class="nav-icon"><span class="status-dot dot-transmitida" style="width:8px;height:8px"></span></span>Transmitida</button>
-    <button class="nav-item" onclick="showDecl('processamento')" id="nav-processamento"><span class="nav-icon"><span class="status-dot dot-processamento" style="width:8px;height:8px"></span></span>Em Processamento</button>
-    <button class="nav-item" onclick="showDecl('malha')" id="nav-malha"><span class="nav-icon"><span class="status-dot dot-malha" style="width:8px;height:8px"></span></span>Em Malha</button>
-    <button class="nav-item" onclick="showDecl('fila')" id="nav-fila"><span class="nav-icon"><span class="status-dot dot-fila" style="width:8px;height:8px"></span></span>Em Fila de Restituição</button>
-    <button class="nav-item" onclick="showDecl('tmanual')" id="nav-tmanual"><span class="nav-icon"><span class="status-dot dot-tmanual" style="width:8px;height:8px"></span></span>Ret. Trab. Manual</button>
-    <button class="nav-item" onclick="showDecl('impugnacao')" id="nav-impugnacao"><span class="nav-icon"><span class="status-dot dot-impugnacao" style="width:8px;height:8px"></span></span>Impugnação</button>
-    <button class="nav-item" onclick="showDecl('impugnar')" id="nav-impugnar"><span class="nav-icon"><span class="status-dot dot-impugnar" style="width:8px;height:8px"></span></span>Impugnar</button>
-    <button class="nav-item" onclick="showDecl('processada')" id="nav-processada"><span class="nav-icon"><span class="status-dot dot-processada" style="width:8px;height:8px"></span></span>Processada</button>
+    <div class="nav-section-label" style="padding:4px 8px 3px">⚡ Ação Necessária</div>
+    <button class="nav-item" onclick="showMalhaSemDDA()" id="nav-malha-sdda"><span class="nav-icon"><span class="status-dot dot-malha" style="width:8px;height:8px"></span></span>Malha s/ DDA<span class="nav-count" id="navcount-malha-sdda"></span></button>
+    <button class="nav-item" onclick="showDecl('impugnar')" id="nav-impugnar"><span class="nav-icon"><span class="status-dot dot-impugnar" style="width:8px;height:8px"></span></span>Impugnar<span class="nav-count" id="navcount-impugnar"></span></button>
+    <div class="nav-section-label" style="padding:10px 8px 3px">Acompanhamento</div>
+    <button class="nav-item" onclick="showDecl('malha')" id="nav-malha"><span class="nav-icon"><span class="status-dot dot-malha" style="width:8px;height:8px"></span></span>Em Malha<span class="nav-count" id="navcount-malha"></span></button>
+    <button class="nav-item" onclick="showDecl('tmanual')" id="nav-tmanual"><span class="nav-icon"><span class="status-dot dot-tmanual" style="width:8px;height:8px"></span></span>Ret. Trab. Manual<span class="nav-count" id="navcount-tmanual"></span></button>
+    <button class="nav-item" onclick="showDecl('fila')" id="nav-fila"><span class="nav-icon"><span class="status-dot dot-fila" style="width:8px;height:8px"></span></span>Em Fila de Restituição<span class="nav-count" id="navcount-fila"></span></button>
+    <button class="nav-item" onclick="showDecl('transmitida')" id="nav-transmitida"><span class="nav-icon"><span class="status-dot dot-transmitida" style="width:8px;height:8px"></span></span>Transmitida<span class="nav-count" id="navcount-transmitida"></span></button>
+    <button class="nav-item" onclick="showDecl('processamento')" id="nav-processamento"><span class="nav-icon"><span class="status-dot dot-processamento" style="width:8px;height:8px"></span></span>Em Processamento<span class="nav-count" id="navcount-processamento"></span></button>
+    <button class="nav-item" onclick="showDecl('impugnacao')" id="nav-impugnacao"><span class="nav-icon"><span class="status-dot dot-impugnacao" style="width:8px;height:8px"></span></span>Impugnação<span class="nav-count" id="navcount-impugnacao"></span></button>
+    <button class="nav-item" onclick="showDecl('processada')" id="nav-processada"><span class="nav-icon"><span class="status-dot dot-processada" style="width:8px;height:8px"></span></span>Processada<span class="nav-count" id="navcount-processada"></span></button>
+    <button class="nav-item" onclick="navClientFilter('PROCP','nav-proc')" id="nav-proc"><span class="nav-icon">⚖️</span>Processo Pendente<span class="nav-count" id="navcount-proc"></span></button>
+    <button class="nav-item" onclick="navClientFilter('PERR','nav-perr')" id="nav-perr"><span class="nav-icon">💰</span>PER a Receber<span class="nav-count" id="navcount-perr"></span></button>
   </nav>
   <div class="sidebar-footer" id="sidebar-stats"></div>
   <div class="nav-section-sep" style="margin:0 0 2px"></div>
@@ -394,6 +407,7 @@ body.exercicios-level .full-edit-only{display:none!important}
   </div>
   <!-- VIEWS -->
   <div class="content" id="view-lista">
+    <div class="summary-cards no-print" id="summary-cards"></div>
     <div class="table-wrap">
       <div class="table-header">
         <span class="table-title">Clientes Ativos</span>
@@ -2049,6 +2063,7 @@ async function init(){
 
 // ── VIEWS ─────────────────────────────────────────────────────────────────────
 let currentDeclStatuses=new Set();
+let declSemDDAOnly=false; // visão "Malha s/ DDA": filtra exercícios sem DDA feito
 let currentDeclYear=null;
 function goBack(){
   if(prevView==='decl'&&prevDeclStatuses.size){
@@ -2066,11 +2081,12 @@ function showView(v){
   const el=document.getElementById('view-'+v);
   if(el)el.style.display='block';
   // Determina qual(is) nav-item(s) deve(m) ficar ativo(s)
+  const _navIdFor=s=>(s==='malha'&&declSemDDAOnly)?'malha-sdda':s;
   if(v==='detalhe'){
     const set=(prevView==='decl'&&prevDeclStatuses.size)?prevDeclStatuses:new Set(['lista']);
-    set.forEach(s=>{const e=document.getElementById('nav-'+s);if(e)e.classList.add('active');});
+    set.forEach(s=>{const e=document.getElementById('nav-'+_navIdFor(s));if(e)e.classList.add('active');});
   } else if(v==='decl'){
-    currentDeclStatuses.forEach(s=>{const e=document.getElementById('nav-'+s);if(e)e.classList.add('active');});
+    currentDeclStatuses.forEach(s=>{const e=document.getElementById('nav-'+_navIdFor(s));if(e)e.classList.add('active');});
   } else {
     const navEl=document.getElementById('nav-'+v);
     if(navEl)navEl.classList.add('active');
@@ -2082,6 +2098,7 @@ function showView(v){
   if(v==='importar'||v==='consulta-ecac')_ecacRefreshUltimaBtns();
 }
 function showDecl(status){
+  declSemDDAOnly=false;
   if(currentDeclStatuses.has(status)){
     if(currentDeclStatuses.size>1) currentDeclStatuses.delete(status);
   } else {
@@ -2176,13 +2193,18 @@ const DECL_INFO={
   processada:{label:'Processada',dot:'processada',cls:'processada'},
   nao_entregue:{label:'Não Entregue',dot:'nao_entregue',cls:'nao_entregue'},
 };
+function declExMatch(c,yr,v){
+  if(!currentDeclStatuses.has(classifyStatus(v).cls))return false;
+  if(declSemDDAOnly&&c.dda&&c.dda[yr]&&c.dda[yr].feito)return false;
+  return true;
+}
 function renderDecl(){
   if(!currentDeclStatuses.size)return;
   // Título da view — único ou múltiplos status
   if(currentDeclStatuses.size===1){
     const info=DECL_INFO[[...currentDeclStatuses][0]];
     document.getElementById('decl-view-title').innerHTML=
-      `<span class="status-dot dot-${info.dot}" style="width:10px;height:10px"></span>${info.label}`;
+      `<span class="status-dot dot-${info.dot}" style="width:10px;height:10px"></span>${declSemDDAOnly?'Malha s/ DDA':info.label}`;
   } else {
     document.getElementById('decl-view-title').innerHTML=
       [...currentDeclStatuses].map(s=>{
@@ -2193,7 +2215,7 @@ function renderDecl(){
   // Gera chips de ano com contagem (agrega todos os status selecionados)
   const allYears=[...new Set(
     allClients.flatMap(c=>Object.entries(c.exercicios||{})
-      .filter(([,v])=>currentDeclStatuses.has(classifyStatus(v).cls))
+      .filter(([yr,v])=>declExMatch(c,yr,v))
       .map(([yr])=>yr))
   )].sort((a,b)=>b-a);
   const yearChipsEl=document.getElementById('decl-year-chips');
@@ -2211,9 +2233,7 @@ function renderDecl(){
   const clients=allClients.filter(c=>{
     if(q&&!deacc(c.nome).includes(q)&&!(c.cpfCnpj||'').includes(q))return false;
     if(!c.exercicios)return false;
-    const matchFn=currentDeclYear
-      ? ([yr,v])=>yr===currentDeclYear&&currentDeclStatuses.has(classifyStatus(v).cls)
-      : ([,v])=>currentDeclStatuses.has(classifyStatus(v).cls);
+    const matchFn=([yr,v])=>(!currentDeclYear||yr===currentDeclYear)&&declExMatch(c,yr,v);
     if(!Object.entries(c.exercicios).some(matchFn))return false;
     // aplica filtro de chip (multi-seleção OR ou único)
     if(activeFilters.size>0)return[...activeFilters].some(k=>matchesFilter(c,k));
@@ -2227,7 +2247,7 @@ function renderDecl(){
   }
   document.getElementById('decl-list').innerHTML=clients.map(c=>{
     const exs=Object.entries(c.exercicios||{})
-      .filter(([yr,st])=>currentDeclStatuses.has(classifyStatus(st).cls)&&(!currentDeclYear||yr===currentDeclYear))
+      .filter(([yr,st])=>declExMatch(c,yr,st)&&(!currentDeclYear||yr===currentDeclYear))
       .sort((a,b)=>b[0]-a[0]);
     const dda=currentDeclStatuses.has('malha');
     // badge do cartão usa o status do primeiro exercício ou neutro em multi-seleção
@@ -2306,6 +2326,8 @@ function renderFilterChips(){
     {key:'DOENCA', label:'Doença Grave',  cls:'dg-chip',      icon:'🩺'},
     {key:'PER',    label:'PERDCOMP',      cls:'per-chip',     icon:'💰'},
     {key:'PROC',   label:'PROCESSO',      cls:'proc-chip',    icon:'⚖️'},
+    {key:'PROCP',  label:'Proc. Pendente',cls:'proc-chip',    icon:'⏳'},
+    {key:'PROCD',  label:'Proc. Decidido',cls:'proc-chip',    icon:'✅'},
     {key:'ATENCAO',label:'ATENÇÃO',       cls:'atencao-chip', icon:'⚠️'},
     {key:'PERR',   label:'<span style="font-size:10px;font-weight:800;letter-spacing:.6px;background:rgba(217,119,6,.15);color:#d97706;border:1px solid rgba(217,119,6,.35);border-radius:4px;padding:1px 5px;margin-right:3px">PER</span>A Receber',cls:'perr-chip',icon:''},
     {key:'MALHA_SEM_DDA', label:'Malha s/ DDA', cls:'malha-chip', icon:'🔴'},
@@ -2372,6 +2394,8 @@ function matchesFilter(c,key){
   if(key==='DOENCA')return c.doencaGrave;
   if(key==='PER')return clientHasPer(c);
   if(key==='PROC')return clientHasProc(c);
+  if(key==='PROCP')return clientHasProcPendente(c);
+  if(key==='PROCD')return clientHasProcDecidido(c);
   if(key==='ATENCAO')return clientHasAtencao(c);
   if(key==='PERR')return clientHasPerAReceber(c);
   if(key==='MALHA_SEM_DDA')return clientHasMalhaSemDDA(c);
@@ -2614,6 +2638,20 @@ async function savePerPanel(id,idx){
 // ── PROCESSO helpers ──────────────────────────────────────────────────────────
 function getProcessos(c){return Array.isArray(c.processos)?c.processos:[];}
 function clientHasProc(c){return getProcessos(c).length>0||Object.values(c.exProcessos||{}).some(v=>Array.isArray(v)&&v.length>0);}
+// ── RESULTADO DE PROCESSO (pendente/decidido) ─────────────────────────────────
+const PROC_RESULT_INFO={procedente:{label:'Procedente',icon:'🟢',color:'#16a34a'},parcial:{label:'Parcial. procedente',icon:'🟡',color:'#d97706'},improcedente:{label:'Improcedente',icon:'🔴',color:'#dc2626'}};
+function procResultBadge(p){
+  const r=PROC_RESULT_INFO[p?.resultado];
+  if(!r)return' <span style="font-size:10px;color:var(--text3)">⏳ pendente</span>';
+  return` <span style="font-size:10px;color:${r.color};font-weight:700">${r.icon} ${r.label}${p.dataDecisao?' em '+esc(p.dataDecisao):''}</span>`;
+}
+function getAllProcs(c){
+  const out=[...getProcessos(c)];
+  for(const arr of Object.values(c.exProcessos||{}))if(Array.isArray(arr))out.push(...arr);
+  return out;
+}
+function clientHasProcPendente(c){return getAllProcs(c).some(p=>!p.resultado);}
+function clientHasProcDecidido(c){return getAllProcs(c).some(p=>!!p.resultado);}
 function detailProcessoHtml(c){
   const ps=getProcessos(c);
   const exTotal=Object.values(c.exProcessos||{}).reduce((s,arr)=>s+(Array.isArray(arr)?arr.length:0),0);
@@ -2626,7 +2664,7 @@ function detailProcessoHtml(c){
       const procs=c.exProcessos[yr]||[];
       if(!procs.length)return;
       html+=`<div style="font-size:11px;margin-top:4px;color:var(--text3)">Exerc. ${yr}: `;
-      html+=procs.map((p,i)=>`<span style="color:#818cf8">${p.numero||'Processo '+(i+1)}</span>`).join(', ');
+      html+=procs.map((p,i)=>`<span style="color:#818cf8">${p.numero||'Processo '+(i+1)}</span>${procResultBadge(p)}`).join(', ');
       const totalRec=procs.reduce((s,p)=>s+(p.valorRec||0),0);
       if(totalRec>0)html+=`<span style="color:var(--green);margin-left:6px">💰 ${BRL(totalRec)}</span>`;
       html+='</div>';
@@ -3499,6 +3537,17 @@ function addExProcEntry(pre){
         <input type="text" id="ex-proc-drec-${idx}" value="${pre?.dataRec||''}" placeholder="dd/mm/aaaa" maxlength="10" oninput="maskDate(this)"></div>
       <div class="ex-proc-field"><label style="color:var(--green)">💰 Valor Recebido (R$)</label>
         <input type="text" id="ex-proc-vrec-${idx}" value="${pre?.valorRec?BRL(pre.valorRec):''}" placeholder="0,00" oninput="maskBRL(this)"></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;background:rgba(129,140,248,.07);border:1px solid rgba(129,140,248,.28);border-radius:8px;padding:10px;margin-top:8px">
+      <div class="ex-proc-field"><label style="color:#6366f1">⚖️ Resultado</label>
+        <select id="ex-proc-result-${idx}">
+          <option value="" ${!pre?.resultado?'selected':''}>⏳ Pendente de decisão</option>
+          <option value="procedente" ${pre?.resultado==='procedente'?'selected':''}>🟢 Procedente</option>
+          <option value="parcial" ${pre?.resultado==='parcial'?'selected':''}>🟡 Parcialmente procedente</option>
+          <option value="improcedente" ${pre?.resultado==='improcedente'?'selected':''}>🔴 Improcedente</option>
+        </select></div>
+      <div class="ex-proc-field"><label style="color:#6366f1">📅 Data da Decisão</label>
+        <input type="text" id="ex-proc-ddec-${idx}" value="${pre?.dataDecisao||''}" placeholder="dd/mm/aaaa" maxlength="10" oninput="maskDate(this)"></div>
     </div>`;
   document.getElementById('ex-proc-list').appendChild(div);
 }
@@ -3512,8 +3561,10 @@ function collectExProcEntries(){
     const obs=document.getElementById(`ex-proc-obs-${id}`)?.value.trim()||'';
     const dataRec=document.getElementById(`ex-proc-drec-${id}`)?.value.trim()||'';
     const valorRec=parseBRLField(document.getElementById(`ex-proc-vrec-${id}`)?.value);
-    if(numero||valorPedido||dataProtocolo||obs||dataRec||valorRec)
-      entries.push({numero,valorPedido,dataProtocolo,obs,dataRec,valorRec});
+    const resultado=document.getElementById(`ex-proc-result-${id}`)?.value||'';
+    const dataDecisao=document.getElementById(`ex-proc-ddec-${id}`)?.value.trim()||'';
+    if(numero||valorPedido||dataProtocolo||obs||dataRec||valorRec||resultado||dataDecisao)
+      entries.push({numero,valorPedido,dataProtocolo,obs,dataRec,valorRec,resultado,dataDecisao});
   });
   return entries;
 }
@@ -3806,33 +3857,6 @@ function openEdit(id){
   maskDoc();
   document.getElementById('modal-cliente').style.display='flex';
 }
-function renderExGrid(exObj){
-  const cats=['EM PROCESSAMENTO','TRANSMITIDA','EM MALHA','EM FILA DE RESTITUIÇÃO','PROCESSADA','TRABALHO MANUAL RFB','IMPUGNAÇÃO','IMPUGNAR'];
-  const catsLegacy=['DDA ABERTO','PERDCOMP','AGUARDANDO','NÃO DECLARADA','OUTRO'];
-  const allCats=[...cats,...catsLegacy];
-  document.getElementById('ex-grid').innerHTML=Object.entries(exObj).sort((a,b)=>b[0]-a[0]).map(([yr,st])=>{
-    const catMatch=allCats.find(o=>st.toUpperCase().startsWith(o))||'EM PROCESSAMENTO';
-    const det=st.toUpperCase().startsWith(catMatch.toUpperCase())?st.slice(catMatch.length).replace(/^\s*[\-\u2014]\s*/,'').trim():st;
-    return`<div class="ex-row" data-year="${yr}">
-      <div class="ex-year-lbl">${yr}</div>
-      <select class="ex-cat-sel" data-year="${yr}">
-        ${cats.map(o=>`<option value="${o}"${catMatch===o?' selected':''}>${o}</option>`).join('')}
-        ${catsLegacy.includes(catMatch)?`<option value="${catMatch}" selected>${catMatch}</option>`:''}
-      </select>
-      <input type="text" class="ex-txt" data-year="${yr}" value="${det}" placeholder="Detalhes…">
-    </div>`;
-  }).join('');
-}
-function addExRow(){
-  const yr=document.getElementById('ex-new-year').value;
-  if(document.querySelector(`.ex-row[data-year="${yr}"]`)){showToast('Exercício já adicionado','error');return}
-  const cats=['EM PROCESSAMENTO','TRANSMITIDA','EM MALHA','EM FILA DE RESTITUIÇÃO','PROCESSADA','TRABALHO MANUAL RFB','IMPUGNAÇÃO','IMPUGNAR'];
-  const div=document.createElement('div');div.className='ex-row';div.dataset.year=yr;
-  div.innerHTML=`<div class="ex-year-lbl">${yr}</div>
-    <select class="ex-cat-sel" data-year="${yr}">${cats.map(o=>`<option value="${o}">${o}</option>`).join('')}</select>
-    <input type="text" class="ex-txt" data-year="${yr}" placeholder="Detalhes…">`;
-  document.getElementById('ex-grid').prepend(div);
-}
 async function saveClient(){
   if(!canEditFields()){showToast('Sem permissão para editar cadastros de clientes','error');return;}
   if(!validarDatas(document.getElementById('modal-cliente')))return;
@@ -4032,8 +4056,83 @@ function populateYearSelects(){
   document.getElementById('ex-new-year').innerHTML=yrs.map(y=>`<option>${y}</option>`).join('');
 }
 
+// ── CONTADORES DO MENU (declarações por status) ───────────────────────────────
+function countDeclsByCls(){
+  const counts={};
+  for(const c of allClients){
+    for(const v of Object.values(c.exercicios||{})){
+      const cls=classifyStatus(v).cls;
+      counts[cls]=(counts[cls]||0)+1;
+    }
+  }
+  return counts;
+}
+function countMalhaSemDDADecls(){
+  let n=0;
+  for(const c of allClients){
+    for(const [yr,st] of Object.entries(c.exercicios||{})){
+      if(classifyStatus(st).cls==='malha'&&!(c.dda&&c.dda[yr]&&c.dda[yr].feito))n++;
+    }
+  }
+  return n;
+}
+function renderNavCounts(){
+  const counts=countDeclsByCls();
+  const set=(id,n)=>{const el=document.getElementById(id);if(el){el.textContent=n;el.classList.toggle('zero',n===0);}};
+  for(const s of ['transmitida','processamento','malha','fila','tmanual','impugnacao','impugnar','processada'])
+    set('navcount-'+s,counts[s]||0);
+  set('navcount-malha-sdda',countMalhaSemDDADecls());
+  set('navcount-proc',allClients.filter(clientHasProcPendente).length);
+  set('navcount-perr',allClients.filter(clientHasPerAReceber).length);
+}
+// ── PAINEL-RESUMO (cartões clicáveis no topo da lista) ────────────────────────
+function declOnly(s){
+  currentDeclStatuses=new Set([s]);
+  currentDeclYear=null;
+  showView('decl');
+  renderDecl();
+}
+function cardFilter(key){
+  const inp=document.getElementById('search-input');if(inp)inp.value='';
+  activeFilters.clear();currentFilter='TODOS';
+  if(key!=='TODOS')activeFilters.add(key);
+  showView('lista');filterClients();renderFilterChips();
+}
+function navClientFilter(key,navId){
+  cardFilter(key);
+  document.querySelectorAll('.nav-item').forEach(el=>el.classList.remove('active'));
+  const e=document.getElementById(navId);if(e)e.classList.add('active');
+}
+function showMalhaSemDDA(){
+  declSemDDAOnly=true;
+  currentDeclStatuses=new Set(['malha']);currentDeclYear=null;
+  showView('decl');renderDecl();
+  document.querySelectorAll('.nav-item').forEach(el=>el.classList.remove('active'));
+  const e=document.getElementById('nav-malha-sdda');if(e)e.classList.add('active');
+}
+function renderSummaryCards(){
+  const el=document.getElementById('summary-cards');
+  if(!el)return;
+  const counts=countDeclsByCls();
+  const ddaPend=allClients.filter(clientHasMalhaSemDDA).length;
+  const atencao=allClients.filter(clientHasAtencao).length;
+  const card=(num,label,sub,color,onclick)=>`
+    <div class="summary-card" style="border-left-color:${color}" onclick="${onclick}" title="Clique para ver">
+      <div class="sc-num" style="color:${color}">${num}</div>
+      <div class="sc-label">${label}</div>
+      <div class="sc-sub">${sub}</div>
+    </div>`;
+  el.innerHTML=
+    card(allClients.length,'Clientes','total cadastrado','var(--accent)',"cardFilter('TODOS')")+
+    card(counts.malha||0,'Em Malha','declarações','var(--red)',"declOnly('malha')")+
+    card(countMalhaSemDDADecls(),'Malha s/ DDA','declarações sem DDA feito','var(--orange)',"showMalhaSemDDA()")+
+    card(counts.impugnar||0,'Impugnar','declarações aguardando','#ec4899',"declOnly('impugnar')")+
+    card(atencao,'⚠️ Atenção','clientes marcados','var(--yellow)',"cardFilter('ATENCAO')");
+}
 // ── SIDEBAR STATS ─────────────────────────────────────────────────────────────
 function renderSidebarStats(){
+  renderNavCounts();
+  renderSummaryCards();
   const pf=allClients.filter(c=>c.tipo==='PF').length;
   const pj=allClients.filter(c=>c.tipo==='PJ').length;
   const countByCls=cls=>allClients.filter(c=>c.exercicios&&Object.values(c.exercicios).some(v=>classifyStatus(v).cls===cls)).length;
