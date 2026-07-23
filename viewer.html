@@ -417,7 +417,7 @@ body.exercicios-level .full-edit-only{display:none!important}
       </div>
       <table>
         <thead><tr>
-          <th>Tipo</th><th>CPF / CNPJ</th><th>Nome</th><th>Acesso e-CAC</th><th>Exercícios</th><th></th>
+          <th>Tipo</th><th>CPF / CNPJ</th><th>Nome</th><th id="th-acesso" onclick="cycleEcacSort()" style="cursor:pointer;user-select:none" title="Clique para ordenar por forma de acesso">Acesso e-CAC <span id="th-acesso-ind" style="font-size:9.5px;font-weight:700;color:var(--accent)"></span></th><th>Exercícios</th><th></th>
         </tr></thead>
         <tbody id="clients-tbody"></tbody>
       </table>
@@ -2300,7 +2300,29 @@ function renderDecl(){
 }
 
 // ── TABLE ─────────────────────────────────────────────────────────────────────
+// Ordenação por Acesso e-CAC: clique no cabeçalho alterna qual forma vem primeiro
+const ECAC_SORT_CYCLE=[null,'PROCURAÇÃO ECAC','SEM ACESSO','SENHA GOV'];
+let ecacSortFirst=null;
+function cycleEcacSort(){
+  const i=ECAC_SORT_CYCLE.indexOf(ecacSortFirst);
+  ecacSortFirst=ECAC_SORT_CYCLE[(i+1)%ECAC_SORT_CYCLE.length];
+  const ind=document.getElementById('th-acesso-ind');
+  if(ind)ind.textContent=ecacSortFirst?`▼ ${ecacSortFirst} primeiro`:'';
+  renderTable(filteredClients);
+}
+function sortByEcac(list){
+  if(!ecacSortFirst)return list;
+  // ordem base das demais formas depois da escolhida
+  const base=['PROCURAÇÃO ECAC','SEM ACESSO','SENHA GOV','CERT DIG PRÓPRIO'];
+  const order=[ecacSortFirst,...base.filter(x=>x!==ecacSortFirst)];
+  const rank=c=>{
+    const i=order.indexOf((c.acessoEcac||'').toUpperCase().trim());
+    return i===-1?order.length:i; // sem preenchimento/outros por último
+  };
+  return [...list].sort((a,b)=>rank(a)-rank(b)||(a.nome||'').localeCompare(b.nome||'','pt-BR'));
+}
 function renderTable(list){
+  list=sortByEcac(list);
   const tbody=document.getElementById('clients-tbody');
   const empty=document.getElementById('empty-state');
   if(!tbody||!empty)return;
