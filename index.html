@@ -4840,9 +4840,14 @@ function gerarRelatorioLotes(){
 function imprimirLoteUnico(idx){
   const l=allLotes[idx];
   if(!l)return;
-  const totalGeral=l.pagamentos.reduce((s,p)=>s+(p.total||Object.values(p.porExercicio||{}).reduce((a,b)=>a+b,0)),0);
+  // Respeita o filtro 🩺 Doença Grave ativo na tela de Lotes
+  const dgMap={};
+  allClients.forEach(c=>{dgMap[c.cpfCnpj]=!!c.doencaGrave;});
+  const pags=lotesFiltroDG?(l.pagamentos||[]).filter(p=>!!dgMap[p.cpfCnpj]):(l.pagamentos||[]);
+  if(!pags.length){showToast('Nenhum cliente com Doença Grave neste lote','error');return;}
+  const totalGeral=pags.reduce((s,p)=>s+(p.total||Object.values(p.porExercicio||{}).reduce((a,b)=>a+b,0)),0);
   const dataGer=new Date().toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
-  const linhas=l.pagamentos.map(p=>{
+  const linhas=pags.map(p=>{
     const exStr=Object.entries(p.porExercicio||{}).sort((a,b)=>b[0]-a[0]).map(([yr,v])=>`${yr}: ${fmtBRL(v)}`).join(' &nbsp;·&nbsp; ');
     const tot=p.total||Object.values(p.porExercicio||{}).reduce((a,b)=>a+b,0);
     return`<tr><td style="font-family:monospace;font-size:10pt">${p.cpfCnpj}</td><td>${p.nome}</td><td style="font-size:10pt;color:#555">${exStr||'—'}</td><td style="text-align:right;font-family:monospace;font-weight:600;color:#16a34a">${fmtBRL(tot)}</td></tr>`;
@@ -4866,7 +4871,7 @@ function imprimirLoteUnico(idx){
     .rodape{margin-top:20px;font-size:8pt;color:#aaa;text-align:center}
   </style></head><body>
   <h1>TGC — Lote de Restituição</h1>
-  <div class="sub">Gerado em ${dataGer} · ${l.pagamentos.length} cliente${l.pagamentos.length!==1?'s':''}</div>
+  <div class="sub">Gerado em ${dataGer} · ${pags.length} cliente${pags.length!==1?'s':''}${lotesFiltroDG?' · 🩺 Somente com Doença Grave':''}</div>
   <div class="lote-info">
     <span class="lote-data">📅 ${l.data}</span>
     ${l.descricao?`<span class="lote-desc">${l.descricao}</span>`:''}
