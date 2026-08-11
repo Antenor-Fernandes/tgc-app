@@ -4402,12 +4402,28 @@ async function ecacStatusOnce(){
   txt.textContent=`${js.estado} · ${js.idx}/${js.total}${js.atual?(' · '+js.atual):''}`;
   if(Array.isArray(js.log)){logEl.textContent=js.log.join('\n');logEl.scrollTop=logEl.scrollHeight;}
   document.getElementById('ecac-btn-continuar').style.display=(js.estado==='aguardando_relogin')?'inline-flex':'none';
-  if(['rodando','pausado','aguardando_relogin'].includes(js.estado)){
+  if(['rodando','pausado','aguardando_relogin','aguardando_rede','reconectando','aguardando_login'].includes(js.estado)){
     document.getElementById('ecac-prog-wrap').style.display='block'; _ecacRunBtns(true);
   }
   if(js.estado==='concluido'||js.estado==='erro'){
     clearInterval(_ecacPoll);_ecacPoll=null; _ecacRunBtns(false);
-    if(js.estado==='erro'){showToast('❌ '+(js.erro||'Erro'),'error');return;}
+    const b=document.getElementById('ecac-btn-pausar'); if(b){b.textContent='⏸ Pausar';b.dataset.paused='';}
+    const parciais=Array.isArray(js.resultados)?js.resultados:[];
+    if(js.estado==='erro'){
+      // A verificação parou no meio (ex.: internet caiu). Não perde o que já foi lido:
+      // mostra os parciais e deixa preenchido o cliente por onde recomeçar.
+      showToast('❌ '+(js.erro||'Erro'),'error');
+      if(js.proximo){
+        const inp=document.getElementById('ecac-comecar');
+        if(inp){inp.value=js.proximo; ecacPreview();}
+      }
+      if(parciais.length){
+        _ecacDone=js;
+        document.getElementById('ecac-btn-result').style.display='inline-flex';
+        showToast(`💾 ${parciais.length} cliente(s) já verificados foram preservados — clique em 'Ver resultado'`,'success');
+      }
+      return;
+    }
     _ecacDone=js;
     document.getElementById('ecac-btn-result').style.display='inline-flex';
     showToast(`✅ Concluído: ${js.resultados.length} cliente(s), ${js.totalDiv} divergência(s)`,'success');
@@ -4416,7 +4432,10 @@ async function ecacStatusOnce(){
 }
 function ecacPausar(){
   const b=document.getElementById('ecac-btn-pausar');
-  if(b.dataset.paused==='1'){_ecacFetch('/retomar',{method:'POST'});b.textContent='⏸ Pausar';b.dataset.paused='';}
+  if(b.dataset.paused==='1'){
+    _ecacFetch('/retomar',{method:'POST'});b.textContent='⏸ Pausar';b.dataset.paused='';
+    showToast('Retomando — reconferindo a conexão com o Chrome…','success');
+  }
   else{_ecacFetch('/pausar',{method:'POST'});b.textContent='▶️ Retomar';b.dataset.paused='1';}
 }
 function ecacParar(){_ecacFetch('/parar',{method:'POST'});showToast('Parando após o cliente atual…','success');}
