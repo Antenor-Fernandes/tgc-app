@@ -376,6 +376,7 @@ body.exercicios-level .full-edit-only{display:none!important}
   <div class="nav-section-sep" style="margin:0 0 2px"></div>
   <nav class="nav" style="padding-top:2px;padding-bottom:10px;flex-shrink:0">
     <button class="nav-item" onclick="showRelatorio()" id="nav-relatorio"><span class="nav-icon">📊</span>Relatórios</button>
+    <button class="nav-item" onclick="showHonorarios()" id="nav-honorarios"><span class="nav-icon">💵</span>Honorários</button>
     <!-- Backup/Importar oculto no modo visualização -->
   </nav>
 </aside>
@@ -633,6 +634,27 @@ body.exercicios-level .full-edit-only{display:none!important}
         <p style="font-size:11.5px;color:var(--text3)">O arquivo é gerado ao final da verificação, na pasta <code>consulta_ecac</code>, junto com a planilha. A importação apenas compara e, se você confirmar, marca os exercícios divergentes com a flag ⚠️ ATENÇÃO — nenhum outro dado é alterado.</p>
       </div>
     </div>
+  </div>
+  <div class="content" id="view-honorarios" style="display:none">
+    <div class="table-wrap" style="margin-bottom:14px">
+      <div class="table-header"><span class="table-title">💵 Honorários por Exercício</span><span id="hon-resumo" style="margin-left:auto;font-size:12px;color:var(--text3)"></span></div>
+      <div style="padding:14px 18px 16px;display:flex;flex-direction:column;gap:13px">
+        <div>
+          <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px">Exercício</div>
+          <div id="hon-year-chips" style="display:flex;gap:6px;flex-wrap:wrap"></div>
+        </div>
+        <div id="hon-cards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(168px,1fr));gap:10px"></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <input type="text" id="hon-busca" oninput="renderHonorariosLista()" placeholder="Filtrar por nome ou CPF…" style="flex:1;min-width:220px;font-size:13px;padding:8px 11px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'DM Sans',sans-serif;outline:none">
+          <button class="btn btn-ghost btn-sm" onclick="honCopiar()">📋 Copiar lista</button>
+          <button class="btn btn-ghost btn-sm" onclick="honCSV()">⬇️ Baixar CSV</button>
+        </div>
+        <div style="font-size:11.5px;color:var(--text3);line-height:1.6;border-top:1px solid var(--border);padding-top:10px">
+          <b style="color:var(--text2)">Como é feito o cruzamento:</b> a base são os clientes com o exercício selecionado <b>cadastrado</b> no programa (= declaração transmitida pela TGC). Para cada um, o texto do campo <i>Serviço</i> de cada pagamento é lido e os anos citados são expandidos — <span style="font-family:'DM Mono',monospace">REST. IR 2021 A 2025</span> conta para 2021, 2022, 2023, 2024 e 2025; <span style="font-family:'DM Mono',monospace">DIRPF 2025 E 2026</span> conta para os dois. A <b>data</b> do pagamento não classifica sozinha — só é usada para separar o que precisa de conferência manual. Quem ainda não teve a declaração <b>PROCESSADA</b> vai para ⏳ <b>Ainda não devido</b> — o honorário só é cobrado depois do processamento. Clientes com <b>VOLUNTÁRIO</b> nas observações ficam na faixa 🤝 própria. Nenhum dos dois entra no cálculo do percentual de quites.
+        </div>
+      </div>
+    </div>
+    <div id="hon-lista"></div>
   </div>
 </div>
 </div>
@@ -2110,6 +2132,7 @@ function showView(v){
   // topbar sempre visível e completo
   document.getElementById('topbar').style.display='flex';
   if(v==='lotes')renderLotes();
+  if(v==='honorarios')renderHonorarios();
 }
 function showDecl(status){
   declSemDDAOnly=false;
@@ -4517,6 +4540,160 @@ setInterval(checkViewerVersion, 5 * 60 * 1000);
 })();
 
 // ── RELATÓRIOS ────────────────────────────────────────────────────────────────
+// ── HONORÁRIOS POR EXERCÍCIO ──────────────────────────────────────────────────
+let honAno=null, honFaixa='naopago';
+const HON_FAIXAS={
+  dirpf  :{label:'Pago — DIRPF',       icon:'✅', cor:'#16a34a', desc:'serviço cita a declaração do exercício'},
+  rest   :{label:'Pago — restituição', icon:'💠', cor:'#0ea5e9', desc:'percentual sobre a restituição do exercício'},
+  verif  :{label:'A verificar',        icon:'⚠️', cor:'#d97706', desc:'pagou no período, mas o texto não identifica o exercício'},
+  naopago:{label:'Não pagou',          icon:'⛔', cor:'#dc2626', desc:'nenhum pagamento referente ao exercício'},
+  aguarda:{label:'Ainda não devido',   icon:'⏳', cor:'#64748b', desc:'declaração ainda não processada — o honorário só é cobrado depois'},
+  volunt :{label:'Voluntário',         icon:'🤝', cor:'#7c3aed', desc:'observação VOLUNTÁRIO — não há cobrança de honorários'}
+};
+const HON_ORDEM=['dirpf','rest','verif','naopago','aguarda','volunt'];
+// Cliente voluntário: observação "VOLUNTÁRIO" (não confundir com "RECURSO VOLUNTÁRIO").
+function honEhVoluntario(c){
+  const t=String(c.observacoes||'').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/RECURSO\s+VOLUNTARIO/g,' ');
+  return /\bVOLUNTA[RT]IO\b/.test(t);
+}
+// Extrai os anos citados no texto do serviço, expandindo faixas ("2021 A 2025") e listas.
+function honAnosDoServico(s){
+  let t=(s||'').toUpperCase();
+  t=t.replace(/\b\d{1,2}\/\d{1,2}\/\d{2,4}\b/g,' ');   // remove datas dd/mm/aaaa
+  t=t.replace(/\b\d{1,2}\/\d{1,2}\b/g,' ');            // remove dd/mm
+  const out=new Set();
+  const re=/\b(20\d{2})\s*(?:A|ATE|ATÉ|ATÉ|\/|-|–|—)\s*(20\d{2})\b/g;
+  let m;
+  while((m=re.exec(t))!==null){
+    const a=+m[1],b=+m[2],lo=Math.min(a,b),hi=Math.max(a,b);
+    for(let y=lo;y<=hi&&y-lo<25;y++)out.add(y);
+  }
+  (t.match(/\b20\d{2}\b/g)||[]).forEach(y=>out.add(+y));
+  return out;
+}
+function honPagamentos(c){return (c.honorariosPagos||[]).filter(p=>(p.data||p.valor||p.servico));}
+function honAnoData(p){const m=/(\d{4})\s*$/.exec((p.data||'').trim());return m?+m[1]:null;}
+function honValorNum(p){
+  const n=parseFloat(String(p.valor||'').replace(/[R$\s]/g,'').replace(/\./g,'').replace(',','.'));
+  return isNaN(n)?0:n;
+}
+function honFmtValor(p){const n=honValorNum(p);return (n>0)?n.toLocaleString('pt-BR',{style:'currency',currency:'BRL'}):(p.valor||'—');}
+// Classifica um cliente quanto ao exercício `ano`.
+function honClassificar(c,ano){
+  const Y=+ano, pags=honPagamentos(c), dirpf=[], rest=[], outro=[], amb=[];
+  if(honEhVoluntario(c))return{faixa:'volunt', pags:[], nota:'voluntário — sem cobrança de honorários', ctx:pags};
+  for(const p of pags){
+    const sv=(p.servico||'').toUpperCase(), anos=honAnosDoServico(p.servico);
+    if(anos.has(Y)){
+      if(/DIRPF/.test(sv))dirpf.push(p);
+      else if(/REST/.test(sv))rest.push(p);
+      else outro.push(p);
+    }else if(anos.size===0){
+      const ad=honAnoData(p);
+      if(ad!==null&&ad>=Y&&ad<=Y+1)amb.push(p);
+    }
+  }
+  if(dirpf.length)    return{faixa:'dirpf', pags:dirpf, nota:''};
+  if(rest.length)     return{faixa:'rest',  pags:rest,  nota:''};
+  if(outro.length)    return{faixa:'verif', pags:outro, nota:'serviço cita '+Y, ctx:pags};
+  if(amb.length)      return{faixa:'verif', pags:amb,   nota:'pagamento sem exercício no texto', ctx:pags};
+  // Sem pagamento do exercício: só é devido depois de PROCESSADA a declaração.
+  const st=classifyStatus(((c.exercicios||{})[ano])||'');
+  if(st.cls!=='processada')return{faixa:'aguarda', pags:[], nota:'declaração '+String(st.label||'—').toLowerCase()+' — honorário ainda não devido', ctx:pags};
+  return{faixa:'naopago', pags:[], nota:pags.length?('tem '+pags.length+' pagamento'+(pags.length!==1?'s':'')+', nenhum do exercício '+Y):'nenhum pagamento registrado', ctx:pags};
+}
+function honAnosDisponiveis(){
+  return [...new Set(allClients.flatMap(c=>Object.keys(c.exercicios||{})))].filter(y=>/^\d{4}$/.test(y)).sort((a,b)=>b-a);
+}
+function honBase(){
+  if(!honAno)return[];
+  return allClients.filter(c=>(c.exercicios||{})[honAno]!==undefined);
+}
+function honSetAno(a){honAno=a;renderHonorarios();}
+function honSetFaixa(f){honFaixa=f;renderHonorarios();}
+function showHonorarios(){
+  if(!honAno){const as=honAnosDisponiveis();honAno=as[0]||null;}
+  showView('honorarios');
+}
+function renderHonorarios(){
+  const anos=honAnosDisponiveis();
+  if(!honAno||!anos.includes(honAno))honAno=anos[0]||null;
+  const chips=document.getElementById('hon-year-chips');
+  if(chips)chips.innerHTML=anos.map(a=>`<div class="filter-chip ${a===honAno?'active':''}" onclick="honSetAno('${a}')" style="font-family:'DM Mono',monospace;font-size:11.5px">${a}</div>`).join('')||'<span style="font-size:12.5px;color:var(--text3)">Nenhum exercício cadastrado.</span>';
+  const base=honBase();
+  const cls=new Map(); const cont={dirpf:0,rest:0,verif:0,naopago:0,aguarda:0,volunt:0};
+  base.forEach(c=>{const r=honClassificar(c,honAno);cls.set(c.id,r);cont[r.faixa]++;});
+  window._honCls=cls;
+  const cards=document.getElementById('hon-cards');
+  if(cards)cards.innerHTML=HON_ORDEM.map(f=>{
+    const I=HON_FAIXAS[f], on=(honFaixa===f);
+    return`<div onclick="honSetFaixa('${f}')" title="${I.desc}" style="cursor:pointer;border:1.5px solid ${on?I.cor:'var(--border)'};background:${on?I.cor+'14':'var(--surface)'};border-radius:11px;padding:11px 13px;transition:all .15s">
+      <div style="font-size:22px;font-weight:700;color:${I.cor};font-family:'DM Mono',monospace;line-height:1.1">${cont[f]}</div>
+      <div style="font-size:12px;font-weight:600;color:var(--text2);margin-top:3px">${I.icon} ${I.label}</div>
+    </div>`;
+  }).join('');
+  const pagos=cont.dirpf+cont.rest, cobravel=base.length-cont.volunt-cont.aguarda;
+  const totalR=base.reduce((s,c)=>{const r=cls.get(c.id);return s+(r.pags||[]).reduce((x,p)=>x+honValorNum(p),0);},0);
+  const res=document.getElementById('hon-resumo');
+  if(res)res.innerHTML=base.length?`${base.length} clientes com exercício ${honAno}${(cont.volunt||cont.aguarda)?` · fora da conta: ${cont.volunt} voluntário${cont.volunt!==1?'s':''} + ${cont.aguarda} ainda não devido${cont.aguarda!==1?'s':''}`:''} · ${pagos} de ${cobravel} quites (${cobravel?Math.round(pagos*100/cobravel):0}%)${totalR>0?` · ${totalR.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})} recebidos`:''}`:'';
+  renderHonorariosLista();
+}
+function honFiltrados(){
+  const q=deacc((document.getElementById('hon-busca')||{}).value||'').trim();
+  const cls=window._honCls||new Map();
+  return honBase().filter(c=>{
+    const r=cls.get(c.id); if(!r||r.faixa!==honFaixa)return false;
+    if(q&&!deacc(c.nome||'').includes(q)&&!(c.cpfCnpj||'').includes(q))return false;
+    return true;
+  }).sort((a,b)=>(a.nome||'').localeCompare(b.nome||'','pt-BR'));
+}
+function renderHonorariosLista(){
+  const el=document.getElementById('hon-lista'); if(!el)return;
+  const I=HON_FAIXAS[honFaixa], cls=window._honCls||new Map(), lista=honFiltrados();
+  if(!lista.length){el.innerHTML=`<div class="empty-state"><div class="empty-icon">${I.icon}</div><div style="margin-top:8px">Nenhum cliente nesta faixa</div></div>`;return;}
+  el.innerHTML=`<div style="font-size:12.5px;color:var(--text3);margin:0 2px 9px">${lista.length} cliente${lista.length!==1?'s':''} · ${I.icon} ${I.label} · exercício ${honAno}</div>`+
+  lista.map(c=>{
+    const r=cls.get(c.id)||{pags:[],nota:''};
+    const linhas=(f=>f.length?f:[]) (r.pags&&r.pags.length?r.pags:(r.ctx||[]).slice().sort((a,b)=>{const k=s=>{const[d,m,y]=String(s||'').split('/');return(y||'0000')+(m||'00')+(d||'00');};return k(b.data).localeCompare(k(a.data));}).slice(0,3));
+    return`<div class="malha-panel">
+      <div class="malha-panel-hd" onclick="openDetail('${c.id}')" style="cursor:pointer;background:${I.cor}12;border-bottom-color:${I.cor}33">
+        <div style="flex:1;min-width:0">
+          <div class="malha-client-name">${esc(c.nome||'')}</div>
+          <div class="malha-doc">${esc(c.cpfCnpj||'—')}${r.nota?` · <span style="color:${I.cor}">${esc(r.nota)}</span>`:''}</div>
+        </div>
+        <span style="margin-left:8px;flex-shrink:0;background:${I.cor}1a;color:${I.cor};border:1px solid ${I.cor}44;border-radius:5px;padding:2px 8px;font-size:10.5px;font-weight:700;white-space:nowrap">${I.icon} ${I.label}</span>
+        ${canEditFields()?`<button class="btn btn-ghost btn-sm edit-only full-edit-only" style="margin-left:8px;flex-shrink:0" onclick="event.stopPropagation();openEdit('${c.id}')">✏️ Editar</button>`:''}
+        <button class="btn btn-ghost btn-sm" style="margin-left:4px;flex-shrink:0;color:var(--text3);font-size:11px" onclick="event.stopPropagation();openDetail('${c.id}')" title="Ver cadastro completo">👤 Ver</button>
+      </div>
+      ${linhas.length?`<div class="malha-exs">${(r.pags&&r.pags.length?'':'<div style="font-size:11px;color:var(--text3);padding:2px 0 5px">últimos lançamentos, para contexto</div>')}${linhas.map(p=>`<div class="ex-item" style="grid-template-columns:95px 125px 1fr auto"><span style="font-family:'DM Mono',monospace;font-size:12px;color:var(--text2)">${esc(p.data||'—')}</span><span style="font-size:13px;font-weight:600;color:var(--green)">${esc(honFmtValor(p))}</span><span style="font-size:12.5px;color:var(--text2)">${esc(p.servico||'—')}</span><span style="font-size:11.5px;color:var(--text3)">${esc(p.responsavel||'')}</span></div>`).join('')}</div>`:''}
+    </div>`;
+  }).join('');
+}
+function honLinhasExport(){
+  const cls=window._honCls||new Map();
+  return honFiltrados().map(c=>{
+    const r=cls.get(c.id)||{pags:[],nota:''};
+    const p=(r.pags||[])[0]||{};
+    return{nome:c.nome||'',cpf:c.cpfCnpj||'',faixa:HON_FAIXAS[honFaixa].label,nota:r.nota||'',data:p.data||'',valor:p.valor||'',servico:p.servico||'',tel:c.telefone||''};
+  });
+}
+function honCopiar(){
+  const txt=honLinhasExport().map(l=>[l.nome,l.cpf,l.tel].filter(Boolean).join(' — ')).join('\n');
+  if(!txt){alert('Nada para copiar.');return;}
+  navigator.clipboard.writeText(txt).then(()=>alert(honFiltrados().length+' cliente(s) copiado(s).'),()=>alert('Não foi possível copiar.'));
+}
+function honCSV(){
+  const linhas=honLinhasExport();
+  if(!linhas.length){alert('Nada para exportar.');return;}
+  const q=s=>'"'+String(s==null?'':s).replace(/"/g,'""')+'"';
+  const csv=[['Nome','CPF/CNPJ','Telefone','Situação','Observação','Data do pagamento','Valor','Serviço'].map(q).join(',')]
+    .concat(linhas.map(l=>[l.nome,l.cpf,l.tel,l.faixa,l.nota,l.data,l.valor,l.servico].map(q).join(','))).join('\n');
+  const blob=new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=`honorarios_${honAno}_${honFaixa}_${new Date().toISOString().slice(0,10)}.csv`;
+  document.body.appendChild(a);a.click();document.body.removeChild(a);
+}
 function showRelatorio(){
   // popula exercícios disponíveis dinamicamente
   const years=new Set();
