@@ -3435,7 +3435,47 @@ function clearExRecFields(){
   // ATENÇÃO
   document.getElementById('ex-atencao').checked=false;
 }
+// ── ANTI-VAZAMENTO ENTRE FORMULÁRIOS ──────────────────────────────────────────
+// Os modais são reaproveitados entre registros. Se um formulário deixa de
+// reatribuir QUALQUER campo, o valor do registro anterior continua na tela e
+// pode ser salvo por engano. Estas funções devolvem o modal ao estado neutro
+// ANTES de qualquer preenchimento.
+function resetModalFields(modalId){
+  const modal=document.getElementById(modalId); if(!modal)return;
+  modal.querySelectorAll('input,textarea,select').forEach(el=>{
+    if(el.type==='checkbox'||el.type==='radio'){el.checked=el.defaultChecked;}
+    else if(el.tagName==='SELECT'){
+      const def=Array.from(el.options).find(o=>o.defaultSelected);
+      el.value=def?def.value:(el.options[0]?el.options[0].value:'');
+    }else{el.value='';}
+    el.disabled=false;
+    el.classList.remove('date-invalid');
+    if(el.title==='Data inválida')el.title='';
+  });
+}
+// Modal de exercício: além dos campos, precisa zerar as listas dinâmicas
+// (honorários, PERDCOMP, PROCESSO) e as variáveis JS que as alimentam.
+function resetExModalState(){
+  // opções de categoria criadas para status legados de OUTRO cliente
+  document.querySelectorAll('#ex-cat option[data-legacy]').forEach(o=>o.remove());
+  resetModalFields('modal-ex');
+  ['ex-hon-list','ex-per-list','ex-proc-list'].forEach(id=>{
+    const el=document.getElementById(id); if(el)el.innerHTML='';
+  });
+  ['ex-lote-hint','ex-dda-box','ex-dda-data-row','ex-impug-box','ex-per-box','ex-proc-box'].forEach(id=>{
+    const el=document.getElementById(id); if(el)el.style.display='none';
+  });
+  exHonEx=[];exHonPer={};exHonProc={};exHonRef={};exHonPagsAno=[];exHonCarregados=new Set();
+  exPerCount=0;exProcCount=0;
+  // Restaura interatividade (o modo Visualização desabilita campos e esconde botões)
+  const body=document.querySelector('#modal-ex .modal-body');
+  if(body){
+    body.querySelectorAll('.ex-check-row').forEach(el=>{el.style.pointerEvents='';});
+    body.querySelectorAll('.btn').forEach(b=>{b.style.display='';});
+  }
+}
 function openAddEx(clientId){
+  resetExModalState();
   exEditId=clientId;exEditYear=null;
   document.getElementById('ex-modal-title').textContent='Novo Exercício';
   document.getElementById('ex-year-disp').disabled=false;
@@ -3443,6 +3483,7 @@ function openAddEx(clientId){
   document.getElementById('ex-cat').value='EM PROCESSAMENTO';
   document.getElementById('ex-detalhe').value='';
   clearExRecFields();
+  honRenderPags('ex','');
   document.getElementById('modal-ex').style.display='flex';
 }
 // ── HONORÁRIOS VINCULADOS AO EXERCÍCIO ────────────────────────────────────────
@@ -3590,6 +3631,7 @@ function honResumoDoAno(c,ano){
 }
 function honTotalDoAno(c,ano){return honResumoDoAno(c,ano).total;}
 function openExModal(clientId,year,focusPerIdx){
+  resetExModalState();
   exEditId=clientId;exEditYear=year;
   const c=allClients.find(x=>x.id===clientId);
   const st=c?.exercicios?.[year]||'';
@@ -3599,7 +3641,7 @@ function openExModal(clientId,year,focusPerIdx){
   const catMatch=cats.find(c2=>st.toUpperCase().startsWith(c2))||'EM PROCESSAMENTO';
   const sel=document.getElementById('ex-cat');
   if(!Array.from(sel.options).find(o=>o.value===catMatch)){
-    const opt=document.createElement('option');opt.value=catMatch;opt.textContent=catMatch;sel.appendChild(opt);
+    const opt=document.createElement('option');opt.value=catMatch;opt.textContent=catMatch;opt.dataset.legacy='1';sel.appendChild(opt);
   }
   sel.value=catMatch;
   const detPart=st.toUpperCase().startsWith(catMatch)?st.slice(catMatch.length).replace(/^\s*[\-—]\s*/,'').trim():st;
@@ -4031,6 +4073,7 @@ async function deleteExModal(){
 
 // ── NEW/EDIT CLIENT ───────────────────────────────────────────────────────────
 function openNewClientModal(){
+  resetModalFields('modal-cliente');
   editingId=null;
   document.getElementById('modal-titulo').textContent='Novo Cliente';
   document.getElementById('f-tipo').value='PF';
@@ -4069,6 +4112,7 @@ function openNewClientModal(){
 }
 function openEdit(id){
   const c=allClients.find(x=>x.id===id);if(!c)return;
+  resetModalFields('modal-cliente');
   editingId=id;
   document.getElementById('modal-titulo').textContent='Editar Cliente';
   document.getElementById('f-tipo').value=c.tipo;
@@ -4098,11 +4142,11 @@ function openEdit(id){
   document.getElementById('f-doenca').value=c.doencaGrave?'true':'false';
   const showDG=c.doencaGrave;
   document.getElementById('f-doenca-box').style.display=showDG?'flex':'none';
-  if(showDG){
-    document.getElementById('f-laudo').value=c.laudo?'true':'false';
-    document.getElementById('f-dataaposent').value=c.dataAposentadoria||'';
-    document.getElementById('f-diagnostico').value=c.diagnostico||'';
-  }
+  // Sempre reatribui: se ficasse dentro do if, o cliente sem doença grave herdaria
+  // laudo/data/diagnóstico do cliente aberto anteriormente.
+  document.getElementById('f-laudo').value=(showDG&&c.laudo)?'true':'false';
+  document.getElementById('f-dataaposent').value=showDG?(c.dataAposentadoria||''):'';
+  document.getElementById('f-diagnostico').value=showDG?(c.diagnostico||''):'';
   document.getElementById('f-obs').value=c.observacoes||'';
   document.getElementById('f-atencao').checked=!!(c.atencao);
   maskDoc();
@@ -4566,8 +4610,10 @@ function openQE(clientId, year, evt){
   const qeCatMatch=cats.find(c2=>st.toUpperCase().startsWith(c2))||'EM PROCESSAMENTO';
   // garante que a opção existe no select (compatibilidade com valores legados)
   const qeSel=document.getElementById('qe-cat');
+  // remove opções legadas do registro anterior antes de avaliar as atuais
+  qeSel.querySelectorAll('option[data-legacy]').forEach(o=>o.remove());
   if(!Array.from(qeSel.options).find(o=>o.value===qeCatMatch)){
-    const opt=document.createElement('option');opt.value=qeCatMatch;opt.textContent=qeCatMatch;qeSel.appendChild(opt);
+    const opt=document.createElement('option');opt.value=qeCatMatch;opt.textContent=qeCatMatch;opt.dataset.legacy='1';qeSel.appendChild(opt);
   }
   qeSel.value=qeCatMatch;
   // mostra só o detalhe (sem repetir a categoria)
