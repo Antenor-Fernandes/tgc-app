@@ -370,6 +370,7 @@ body.exercicios-level .full-edit-only{display:none!important}
     <button class="nav-item" onclick="showDecl('impugnacao')" id="nav-impugnacao"><span class="nav-icon"><span class="status-dot dot-impugnacao" style="width:8px;height:8px"></span></span>Impugnação<span class="nav-count" id="navcount-impugnacao"></span></button>
     <button class="nav-item" onclick="showDecl('processada')" id="nav-processada"><span class="nav-icon"><span class="status-dot dot-processada" style="width:8px;height:8px"></span></span>Processada<span class="nav-count" id="navcount-processada"></span></button>
     <button class="nav-item" onclick="navClientFilter('PROCP','nav-proc')" id="nav-proc"><span class="nav-icon">⚖️</span>Processo Pendente<span class="nav-count" id="navcount-proc"></span></button>
+    <button class="nav-item" onclick="showView('processos')" id="nav-processos"><span class="nav-icon">📂</span>Processos e-CAC<span class="nav-count" id="navcount-eproc"></span></button>
     <button class="nav-item" onclick="navClientFilter('PERR','nav-perr')" id="nav-perr"><span class="nav-icon">💰</span>PER a Receber<span class="nav-count" id="navcount-perr"></span></button>
   </nav>
   <div class="sidebar-footer" id="sidebar-stats"></div>
@@ -655,6 +656,22 @@ body.exercicios-level .full-edit-only{display:none!important}
       </div>
     </div>
     <div id="hon-lista"></div>
+  </div>
+  <div class="content" id="view-processos" style="display:none">
+    <div class="table-wrap" style="margin-bottom:14px">
+      <div class="table-header"><span class="table-title">📂 Processos e-CAC (e-Processo)</span><span id="eproc-resumo" style="margin-left:auto;font-size:12px;color:var(--text3)"></span></div>
+      <div style="padding:14px 18px 16px;display:flex;flex-direction:column;gap:13px">
+        <div id="eproc-cards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(168px,1fr));gap:10px"></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <input type="text" id="eproc-busca" oninput="renderProcessosLista()" placeholder="Filtrar por nome, CPF ou nº do processo…" style="flex:1;min-width:220px;font-size:13px;padding:8px 11px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'DM Sans',sans-serif;outline:none">
+          <button class="btn btn-ghost btn-sm" onclick="eprocCSV()">⬇️ Baixar CSV</button>
+        </div>
+        <div style="font-size:11.5px;color:var(--text3);line-height:1.6;border-top:1px solid var(--border);padding-top:10px">
+          <b style="color:var(--text2)">Como funciona:</b> a leitura é feita em <b>Consulta e-CAC</b> (tipo <i>Processos</i> ou <i>Declarações + Processos</i>) e só <b>lê a lista</b> de processos e documentos — nenhum documento é aberto ou baixado. Cada leitura é comparada com a anterior: <b>juntada nova</b>, <b>mudança de localização ou situação</b>, <b>processo novo</b> e <b>processo que saiu dos ativos</b> ficam marcados 🔔 até você clicar <b>✔ Visto</b> — mesmo que rode outras consultas no meio. Na 1ª leitura de cada cliente não há novidade (é a referência); use o filtro de juntadas recentes.
+        </div>
+      </div>
+    </div>
+    <div id="eproc-lista"></div>
   </div>
 </div>
 </div>
@@ -2155,6 +2172,7 @@ function showView(v){
   document.getElementById('topbar').style.display='flex';
   if(v==='lotes')renderLotes();
   if(v==='honorarios')renderHonorarios();
+  if(v==='processos')renderProcessos();
 }
 function showDecl(status){
   declSemDDAOnly=false;
@@ -4378,6 +4396,7 @@ function renderNavCounts(){
     set('navcount-'+s,counts[s]||0);
   set('navcount-malha-sdda',countMalhaSemDDADecls());
   set('navcount-proc',allClients.filter(clientHasProcPendente).length);
+  set('navcount-eproc',eprocContaNovidades());
   set('navcount-perr',allClients.filter(clientHasPerAReceber).length);
 }
 // ── PAINEL-RESUMO (cartões clicáveis no topo da lista) ────────────────────────
@@ -4591,6 +4610,170 @@ async function applyEcacMarks(){
   ghSave();
   showToast(`✅ ${nE} exercício(s) marcados em ${nC} cliente(s)`,'success');
   closeEcacModal();
+}
+
+// ── 📂 PROCESSOS e-CAC (e-Processo) ──────────────────────────────────────────
+// c.eproc = { retrato:{lidoEm, ativos:[{numero,numeroFormatado,tipo,subtipo,localizacao,
+//   situacao,qtdDocumentos,ultimoDocumento,ultimaJuntada,docs:[nº]}], inativos:[…]},
+//   pendentes:[novidades ainda não vistas], lidoEm, falha, vistoEm }
+// O retrato é a referência da PRÓXIMA leitura; as novidades acumulam em
+// "pendentes" até o ✔ Visto (assim nada se perde entre uma consulta e outra).
+let eprocFiltro='novidades';
+const EPROC_FILTROS={
+  novidades:{icon:'🔔',label:'Com novidade',cor:'#d97706',desc:'Clientes com novidade ainda não vista'},
+  recentes:{icon:'🗓️',label:'Juntada ≤ 30 dias',cor:'#2563eb',desc:'Processos com documento juntado nos últimos 30 dias'},
+  ativos:{icon:'⚖️',label:'Com processo ativo',cor:'#7c3aed',desc:'Todos os clientes com processo ativo no e-Processo'},
+  falhas:{icon:'⚠️',label:'Falha na leitura',cor:'#dc2626',desc:'A última tentativa de leitura falhou ou parou em mensagem importante'},
+  lidos:{icon:'📂',label:'Todos os lidos',cor:'#64748b',desc:'Todos os clientes que já tiveram os processos lidos'}
+};
+function _eprocData(s){const m=String(s||'').match(/(\d{2})\/(\d{2})\/(\d{4})(?:\s+(\d{2}):(\d{2}))?/);return m?new Date(+m[3],+m[2]-1,+m[1],+(m[4]||0),+(m[5]||0)):null;}
+function _eprocUltJunt(c){let mx=null;for(const p of (c.eproc?.retrato?.ativos||[])){const d=_eprocData(p.ultimaJuntada);if(d&&(!mx||d>mx))mx=d;}return mx;}
+function _eprocRecente(p,dias){const d=_eprocData(p.ultimaJuntada);return d&&(Date.now()-d.getTime())<=dias*864e5;}
+function _eprocPend(c){return (c.eproc?.pendentes||[]).length;}
+function _eprocAtivos(c){return (c.eproc?.retrato?.ativos||[]);}
+function _eprocPodeEditar(){return typeof canEditExercicios!=='function'||canEditExercicios();}
+function eprocContaNovidades(){return allClients.filter(c=>_eprocPend(c)>0).length;}
+function eprocSetFiltro(f){eprocFiltro=f;renderProcessos();}
+function _eprocBase(f){
+  const lidos=allClients.filter(c=>c.eproc&&(c.eproc.retrato||c.eproc.falha));
+  if(f==='novidades')return lidos.filter(c=>_eprocPend(c)>0);
+  if(f==='recentes')return lidos.filter(c=>_eprocAtivos(c).some(p=>_eprocRecente(p,30)));
+  if(f==='ativos')return lidos.filter(c=>_eprocAtivos(c).length>0);
+  if(f==='falhas')return lidos.filter(c=>!!c.eproc.falha);
+  return lidos;
+}
+function renderProcessos(){
+  const cards=document.getElementById('eproc-cards'); if(!cards)return;
+  const ordem=['novidades','recentes','ativos','falhas','lidos'];
+  cards.innerHTML=ordem.map(f=>{
+    const I=EPROC_FILTROS[f], on=(eprocFiltro===f), n=_eprocBase(f).length;
+    return`<div onclick="eprocSetFiltro('${f}')" title="${I.desc}" style="cursor:pointer;border:1.5px solid ${on?I.cor:'var(--border)'};background:${on?I.cor+'14':'var(--surface)'};border-radius:11px;padding:11px 13px;transition:all .15s">
+      <div style="font-size:22px;font-weight:700;color:${I.cor};font-family:'DM Mono',monospace;line-height:1.1">${n}</div>
+      <div style="font-size:12px;font-weight:600;color:var(--text2);margin-top:3px">${I.icon} ${I.label}</div>
+    </div>`;
+  }).join('');
+  const lidos=_eprocBase('lidos');
+  let ult=null; lidos.forEach(c=>{const d=_eprocData(c.eproc?.lidoEm);if(d&&(!ult||d>ult))ult=d;});
+  const nProc=lidos.reduce((s,c)=>s+_eprocAtivos(c).length,0);
+  const rs=document.getElementById('eproc-resumo');
+  if(rs)rs.textContent=lidos.length?`${lidos.length} cliente(s) lido(s) · ${nProc} processo(s) ativo(s)${ult?' · última leitura '+ult.toLocaleDateString('pt-BR'):''}`:'';
+  renderProcessosLista();
+}
+function _eprocFiltrados(){
+  const q=(document.getElementById('eproc-busca')?.value||'').trim().toLowerCase(), qd=_digits(q);
+  let l=_eprocBase(eprocFiltro);
+  if(q)l=l.filter(c=>(c.nome||'').toLowerCase().includes(q)||(qd&&(_digits(c.cpfCnpj).includes(qd)||_eprocAtivos(c).some(p=>String(p.numero||'').includes(qd))||(c.eproc?.retrato?.inativos||[]).some(p=>String(p.numero||'').includes(qd)))));
+  return l.slice().sort((a,b)=>{
+    const pa=_eprocPend(a),pb=_eprocPend(b);
+    if((pa>0)!==(pb>0))return pb>0?1:-1;
+    const da=_eprocUltJunt(a),db=_eprocUltJunt(b);
+    if(da||db)return (db?db.getTime():0)-(da?da.getTime():0);
+    return (a.nome||'').localeCompare(b.nome||'','pt-BR');
+  });
+}
+const _EPROC_TIPO_NOV={DOCUMENTO:'📄',LOCALIZACAO:'📍',SITUACAO:'🔄',PROCESSO_NOVO:'🆕',SAIU_DOS_ATIVOS:'📦',INATIVO_NOVO:'🗄️'};
+function renderProcessosLista(){
+  const el=document.getElementById('eproc-lista'); if(!el)return;
+  const I=EPROC_FILTROS[eprocFiltro], lista=_eprocFiltrados();
+  if(!allClients.some(c=>c.eproc)){el.innerHTML=`<div class="empty-state"><div class="empty-icon">📂</div><div style="margin-top:8px">Nenhuma leitura de processos ainda.<br><span style="font-size:12.5px;color:var(--text3)">Rode a <b>Consulta e-CAC</b> com o tipo <i>Processos</i> ou <i>Declarações + Processos</i>.</span></div></div>`;return;}
+  if(!lista.length){el.innerHTML=`<div class="empty-state"><div class="empty-icon">${I.icon}</div><div style="margin-top:8px">Nenhum cliente nesta faixa</div></div>`;return;}
+  const pode=_eprocPodeEditar();
+  const nPend=lista.filter(c=>_eprocPend(c)>0).length;
+  el.innerHTML=`<div style="display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--text3);margin:0 2px 9px">${lista.length} cliente${lista.length!==1?'s':''} · ${I.icon} ${I.label}${pode&&nPend>1&&eprocFiltro==='novidades'?`<button class="btn btn-ghost btn-sm" style="margin-left:auto" onclick="eprocVistoTodos()">✔ Marcar os ${nPend} como vistos</button>`:''}</div>`+
+  lista.map(c=>{
+    const e=c.eproc||{}, pend=e.pendentes||[], ativos=_eprocAtivos(c), inat=e.retrato?.inativos||[];
+    const comPend=new Set(pend.map(n=>n.processo));
+    const cor=pend.length?'#d97706':(e.falha?'#dc2626':'#7c3aed');
+    const nov=pend.length?`<div style="padding:10px 16px;background:#d9770610;border-bottom:1px solid var(--border);display:flex;flex-direction:column;gap:4px">${pend.map(n=>`<div style="font-size:12.5px;color:var(--text)"><span style="margin-right:6px">${_EPROC_TIPO_NOV[n.tipo]||'🔔'}</span><span style="font-family:'DM Mono',monospace;font-size:11.5px;color:var(--text2)">${esc(n.processo||'')}</span> — ${esc(n.texto||'')}${n.detectadoEm?` <span style="font-size:11px;color:var(--text3)">(lido em ${esc(String(n.detectadoEm).slice(0,10))})</span>`:''}</div>`).join('')}</div>`:'';
+    const falha=e.falha?`<div style="padding:8px 16px;font-size:12px;color:#dc2626;border-bottom:1px solid var(--border)">${esc(e.falha)}${e.falhaEm?` <span style="color:var(--text3)">(${esc(e.falhaEm)})</span>`:''}</div>`:'';
+    const linhas=ativos.map(p=>{
+      const rec=_eprocRecente(p,30), hl=comPend.has(p.numeroFormatado);
+      return`<div class="ex-item" style="grid-template-columns:170px 1.3fr 1fr 70px 1.6fr;${hl?'border-color:#d97706;background:#d977060d':''}">
+        <span style="font-family:'DM Mono',monospace;font-size:12px;color:var(--text)">${esc(p.numeroFormatado||p.numero||'')}<div style="font-size:10.5px;color:var(--text3)">prot. ${esc(p.dataProtocolo||'—')}</div></span>
+        <span style="font-size:12px;color:var(--text2)"><b style="color:var(--text)">${esc(p.subtipo||p.tipo||'—')}</b><div style="font-size:11px;color:var(--text3)">${esc(p.tipo||'')}${p.situacao&&p.situacao!=='CONFIRMADO'?' · '+esc(p.situacao):''}</div></span>
+        <span style="font-size:12px;color:var(--text2)">📍 ${esc(p.localizacao||'—')}</span>
+        <span style="font-size:12px;color:var(--text3);text-align:right">${p.qtdDocumentos??'—'} doc.</span>
+        <span style="font-size:12px;color:var(--text2)">${p.ultimaJuntada?`<span style="font-family:'DM Mono',monospace;font-size:11.5px;color:${rec?'#2563eb':'var(--text3)'};font-weight:${rec?700:400}">${esc(String(p.ultimaJuntada).slice(0,16))}</span><div style="font-size:11.5px">${esc(p.ultimoDocumento||'')}</div>`:esc(p.ultimoDocumento||'—')}</span>
+      </div>`;}).join('');
+    const inatHtml=inat.length?`<details style="padding:0 16px 10px"><summary style="cursor:pointer;font-size:11.5px;color:var(--text3)">🗄️ ${inat.length} processo(s) arquivado(s)/inativo(s)</summary><div style="font-size:11.5px;color:var(--text3);margin-top:6px;line-height:1.7">${inat.map(p=>`<span style="font-family:'DM Mono',monospace">${esc(p.numeroFormatado||p.numero||'')}</span> · ${esc(p.subtipo||p.tipo||'—')} · prot. ${esc(p.dataProtocolo||'—')}`).join('<br>')}</div></details>`:'';
+    return`<div class="malha-panel">
+      <div class="malha-panel-hd" style="background:${cor}12;border-bottom-color:${cor}33">
+        <div style="flex:1;min-width:0;cursor:pointer" onclick="openDetail('${c.id}')">
+          <div class="malha-client-name">${esc(c.nome||'')}</div>
+          <div class="malha-doc">${esc(c.cpfCnpj||'—')} · ${ativos.length} ativo(s)${e.lidoEm?` · lido em ${esc(e.lidoEm)}`:''}${e.vistoEm?` · visto em ${esc(e.vistoEm)}`:''}</div>
+        </div>
+        ${pend.length?`<span style="margin-left:8px;flex-shrink:0;background:#d977061a;color:#d97706;border:1px solid #d9770644;border-radius:5px;padding:2px 8px;font-size:10.5px;font-weight:700;white-space:nowrap">🔔 ${pend.length} novidade(s)</span>`:''}
+        ${pend.length&&pode?`<button class="btn btn-primary btn-sm" style="margin-left:8px;flex-shrink:0" onclick="event.stopPropagation();eprocVisto('${c.id}')">✔ Visto</button>`:''}
+        <button class="btn btn-ghost btn-sm" style="margin-left:4px;flex-shrink:0;color:var(--text3);font-size:11px" onclick="event.stopPropagation();openDetail('${c.id}')" title="Ver cadastro completo">👤 Ver</button>
+      </div>
+      ${nov}${falha}
+      ${ativos.length?`<div style="display:flex;flex-direction:column;gap:6px;padding:10px 16px">${linhas}</div>`:(e.retrato?'<div style="padding:10px 16px;font-size:12.5px;color:var(--text3)">Nenhum processo ativo.</div>':'')}
+      ${inatHtml}
+    </div>`;
+  }).join('');
+}
+async function _eprocGravar(mudados){
+  for(const c of mudados)await dbPut('clientes',c);
+  allClients=await dbAll('clientes');
+  allClients.sort((a,b)=>(a.nome||'').localeCompare(b.nome||'','pt-BR'));
+  if(typeof renderNavCounts==='function')renderNavCounts();
+  ghSave();
+}
+async function eprocVisto(id){
+  if(!_eprocPodeEditar()){showToast('Sem permissão para editar.','error');return;}
+  const c=allClients.find(x=>x.id===id); if(!c||!c.eproc)return;
+  c.eproc.pendentes=[]; c.eproc.vistoEm=new Date().toLocaleString('pt-BR');
+  await _eprocGravar([c]); renderProcessos();
+  showToast('✔ Novidades de '+(c.nome||'')+' marcadas como vistas','success');
+}
+async function eprocVistoTodos(){
+  if(!_eprocPodeEditar()){showToast('Sem permissão para editar.','error');return;}
+  const l=_eprocFiltrados().filter(c=>_eprocPend(c)>0);
+  if(!l.length||!confirm('Marcar as novidades de '+l.length+' cliente(s) como vistas?'))return;
+  const agora=new Date().toLocaleString('pt-BR');
+  l.forEach(c=>{c.eproc.pendentes=[];c.eproc.vistoEm=agora;});
+  await _eprocGravar(l); renderProcessos();
+  showToast('✔ '+l.length+' cliente(s) marcados como vistos','success');
+}
+// Recebe o resultado do servidor (js.processos) e grava no cadastro.
+// Idempotente: um cliente cujo retrato já tem o mesmo "lidoEm" não é reaplicado.
+async function eprocAplicar(lista){
+  const chave=n=>[n.tipo,n.processo,n.doc||'',n.texto].join('|');
+  const mudados=[]; let nN=0, nL=0, nF=0;
+  for(const r of (lista||[])){
+    const cpf=r.cpf_digits||_digits(r.cpf);
+    const c=allClients.find(x=>_digits(x.cpfCnpj)===cpf); if(!c)continue;
+    const e=c.eproc||{};
+    if(r.retrato){
+      if(e.retrato&&e.retrato.lidoEm===r.retrato.lidoEm)continue;
+      const pend=(e.pendentes||[]).slice(), ks=new Set(pend.map(chave));
+      for(const n of (r.novidades||[]))if(!ks.has(chave(n))){pend.push(n);ks.add(chave(n));nN++;}
+      c.eproc={retrato:r.retrato,pendentes:pend,lidoEm:r.retrato.lidoEm,falha:'',vistoEm:e.vistoEm||''};
+      nL++;
+    }else{
+      if(e.falha===r.obs)continue;
+      c.eproc=Object.assign({},e,{falha:r.obs||'falha',falhaEm:new Date().toLocaleString('pt-BR')});
+      nF++;
+    }
+    mudados.push(c);
+  }
+  if(mudados.length)await _eprocGravar(mudados);
+  if(typeof currentView!=='undefined'&&currentView==='processos')renderProcessos();
+  return {nL,nN,nF};
+}
+function eprocCSV(){
+  const q=s=>'"'+String(s==null?'':s).replace(/"/g,'""')+'"';
+  const rows=[['Nome','CPF','Processo','Tipo','Subtipo','Localização','Situação','Documentos','Última juntada','Último documento','Novidades pendentes','Lido em'].map(q).join(',')];
+  _eprocFiltrados().forEach(c=>{
+    const e=c.eproc||{}, at=_eprocAtivos(c);
+    const pendDe=p=>(e.pendentes||[]).filter(n=>n.processo===p).map(n=>n.texto).join(' | ');
+    if(!at.length)rows.push([c.nome,c.cpfCnpj,'','','','','','','','',(e.pendentes||[]).map(n=>n.texto).join(' | '),e.lidoEm].map(q).join(','));
+    at.forEach(p=>rows.push([c.nome,c.cpfCnpj,p.numeroFormatado,p.tipo,p.subtipo,p.localizacao,p.situacao,p.qtdDocumentos,p.ultimaJuntada,p.ultimoDocumento,pendDe(p.numeroFormatado),e.lidoEm].map(q).join(',')));
+  });
+  if(rows.length<2){alert('Nada para exportar.');return;}
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob(['﻿'+rows.join('\n')],{type:'text/csv;charset=utf-8'}));
+  a.download='processos_ecac_'+new Date().toISOString().slice(0,10)+'.csv'; a.click();
 }
 
 // ── QUICK EDIT ────────────────────────────────────────────────────────────────
@@ -4863,6 +5046,7 @@ async function honAplicarVinculador(){
   _honVincPlano=null;
   showToast(`✅ ${n} lançamento(s) vinculado(s)`,'success');
   if(currentView==='honorarios')renderHonorarios();
+  if(currentView==='processos')renderProcessos();
 }
 // ── HONORÁRIOS POR EXERCÍCIO ──────────────────────────────────────────────────
 let honAno=null, honFaixa='naopago';
