@@ -3345,6 +3345,7 @@ function openDetail(id){
 
       <div class="info-card" style="grid-column:span 3${c.atencao?';border-color:rgba(245,158,11,.4);background:rgba(245,158,11,.04)':''}"><div class="info-card-label">Observações${c.atencao?'<span style="margin-left:8px;font-size:10.5px;font-weight:700;color:#f59e0b;background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.35);border-radius:4px;padding:1px 6px">⚠️ ATENÇÃO</span>':''}</div><div class="info-card-val" style="font-size:13px;color:var(--text2)">${c.observacoes||'—'}</div></div>
     </div>
+    ${mirDetalheHtml(c)}
     <div class="section-hd">📅 Exercícios Fiscais
       ${canEditExercicios()?`<button class="btn btn-ghost btn-sm edit-only" onclick="openAddEx('${c.id}')">＋ Adicionar</button>`:''}
     </div>
@@ -3401,7 +3402,7 @@ function openDetail(id){
             <div class="ex-item-year">${yr}</div>
             <div><span class="badge badge-${cat.cls}" style="margin-bottom:4px">${cat.label}</span>
               <div class="ex-item-status">${(()=>{const cats2=['EM PROCESSAMENTO','PROCESSADA','EM MALHA','TRABALHO MANUAL RFB','TRANSMITIDA','EM FILA DE RESTITUIÇÃO','PERDCOMP','IMPUGNAÇÃO','IMPUGNAR','AGUARDANDO','NÃO DECLARADA','OUTRO'];const cm=cats2.find(o=>st.toUpperCase().startsWith(o));return cm?st.slice(cm.length).replace(/^\s*[\-\u2014]\s*/,'').trim():st;})()}</div>
-              ${recInfo}${impugInfo}${ddaInfo}${honInfo}${perInfo}${procInfo}${exAtencaoInfo}</div>
+              ${recInfo}${impugInfo}${ddaInfo}${honInfo}${perInfo}${procInfo}${exAtencaoInfo}${mirExInfo(c,yr)}</div>
             <div style="display:flex;gap:5px">${qeBtn}${editBtn}</div>
           </div>`;
         }).join('')}
@@ -4623,7 +4624,8 @@ const EPROC_FILTROS={
   novidades:{icon:'🔔',label:'Com novidade',cor:'#d97706',desc:'Clientes com novidade ainda não vista'},
   recentes:{icon:'🗓️',label:'Juntada ≤ 30 dias',cor:'#2563eb',desc:'Processos com documento juntado nos últimos 30 dias'},
   ativos:{icon:'⚖️',label:'Com processo ativo',cor:'#7c3aed',desc:'Todos os clientes com processo ativo no e-Processo'},
-  falhas:{icon:'⚠️',label:'Falha na leitura',cor:'#dc2626',desc:'A última tentativa de leitura falhou ou parou em mensagem importante'},
+  avisos:{icon:'📢',label:'Aviso no MIR',cor:'#dc2626',desc:'Clientes com aviso no Meu Imposto de Renda (ex.: e-edital publicado)'},
+  falhas:{icon:'⚠️',label:'Falha na leitura',cor:'#b45309',desc:'A última tentativa de leitura falhou ou parou em mensagem importante'},
   lidos:{icon:'📂',label:'Todos os lidos',cor:'#64748b',desc:'Todos os clientes que já tiveram os processos lidos'}
 };
 function _eprocData(s){const m=String(s||'').match(/(\d{2})\/(\d{2})\/(\d{4})(?:\s+(\d{2}):(\d{2}))?/);return m?new Date(+m[3],+m[2]-1,+m[1],+(m[4]||0),+(m[5]||0)):null;}
@@ -4635,8 +4637,9 @@ function _eprocPodeEditar(){return typeof canEditExercicios!=='function'||canEdi
 function eprocContaNovidades(){return allClients.filter(c=>_eprocPend(c)>0).length;}
 function eprocSetFiltro(f){eprocFiltro=f;renderProcessos();}
 function _eprocBase(f){
-  const lidos=allClients.filter(c=>c.eproc&&(c.eproc.retrato||c.eproc.falha));
+  const lidos=allClients.filter(c=>(c.eproc&&(c.eproc.retrato||c.eproc.falha||(c.eproc.pendentes||[]).length))||(c.mir?.alertas||[]).length);
   if(f==='novidades')return lidos.filter(c=>_eprocPend(c)>0);
+  if(f==='avisos')return lidos.filter(c=>(c.mir?.alertas||[]).length>0);
   if(f==='recentes')return lidos.filter(c=>_eprocAtivos(c).some(p=>_eprocRecente(p,30)));
   if(f==='ativos')return lidos.filter(c=>_eprocAtivos(c).length>0);
   if(f==='falhas')return lidos.filter(c=>!!c.eproc.falha);
@@ -4644,7 +4647,7 @@ function _eprocBase(f){
 }
 function renderProcessos(){
   const cards=document.getElementById('eproc-cards'); if(!cards)return;
-  const ordem=['novidades','recentes','ativos','falhas','lidos'];
+  const ordem=['novidades','recentes','ativos','avisos','falhas','lidos'];
   cards.innerHTML=ordem.map(f=>{
     const I=EPROC_FILTROS[f], on=(eprocFiltro===f), n=_eprocBase(f).length;
     return`<div onclick="eprocSetFiltro('${f}')" title="${I.desc}" style="cursor:pointer;border:1.5px solid ${on?I.cor:'var(--border)'};background:${on?I.cor+'14':'var(--surface)'};border-radius:11px;padding:11px 13px;transition:all .15s">
@@ -4671,11 +4674,11 @@ function _eprocFiltrados(){
     return (a.nome||'').localeCompare(b.nome||'','pt-BR');
   });
 }
-const _EPROC_TIPO_NOV={DOCUMENTO:'📄',LOCALIZACAO:'📍',SITUACAO:'🔄',PROCESSO_NOVO:'🆕',SAIU_DOS_ATIVOS:'📦',INATIVO_NOVO:'🗄️'};
+const _EPROC_TIPO_NOV={AVISO_MIR:'📢',DOCUMENTO:'📄',LOCALIZACAO:'📍',SITUACAO:'🔄',PROCESSO_NOVO:'🆕',SAIU_DOS_ATIVOS:'📦',INATIVO_NOVO:'🗄️'};
 function renderProcessosLista(){
   const el=document.getElementById('eproc-lista'); if(!el)return;
   const I=EPROC_FILTROS[eprocFiltro], lista=_eprocFiltrados();
-  if(!allClients.some(c=>c.eproc)){el.innerHTML=`<div class="empty-state"><div class="empty-icon">📂</div><div style="margin-top:8px">Nenhuma leitura de processos ainda.<br><span style="font-size:12.5px;color:var(--text3)">Rode a <b>Consulta e-CAC</b> com o tipo <i>Processos</i> ou <i>Declarações + Processos</i>.</span></div></div>`;return;}
+  if(!allClients.some(c=>c.eproc||(c.mir?.alertas||[]).length)){el.innerHTML=`<div class="empty-state"><div class="empty-icon">📂</div><div style="margin-top:8px">Nenhuma leitura de processos ainda.<br><span style="font-size:12.5px;color:var(--text3)">Rode a <b>Consulta e-CAC</b> com o tipo <i>Processos</i> ou <i>Declarações + Processos</i>.</span></div></div>`;return;}
   if(!lista.length){el.innerHTML=`<div class="empty-state"><div class="empty-icon">${I.icon}</div><div style="margin-top:8px">Nenhum cliente nesta faixa</div></div>`;return;}
   const pode=_eprocPodeEditar();
   const nPend=lista.filter(c=>_eprocPend(c)>0).length;
@@ -4700,13 +4703,13 @@ function renderProcessosLista(){
       <div class="malha-panel-hd" style="background:${cor}12;border-bottom-color:${cor}33">
         <div style="flex:1;min-width:0;cursor:pointer" onclick="openDetail('${c.id}')">
           <div class="malha-client-name">${esc(c.nome||'')}</div>
-          <div class="malha-doc">${esc(c.cpfCnpj||'—')} · ${ativos.length} ativo(s)${e.lidoEm?` · lido em ${esc(e.lidoEm)}`:''}${e.vistoEm?` · visto em ${esc(e.vistoEm)}`:''}</div>
+          <div class="malha-doc">${esc(c.cpfCnpj||'—')} · ${e.retrato?ativos.length+' processo(s) ativo(s)':'processos não lidos'}${e.lidoEm?` · lido em ${esc(e.lidoEm)}`:''}${e.vistoEm?` · visto em ${esc(e.vistoEm)}`:''}</div>
         </div>
         ${pend.length?`<span style="margin-left:8px;flex-shrink:0;background:#d977061a;color:#d97706;border:1px solid #d9770644;border-radius:5px;padding:2px 8px;font-size:10.5px;font-weight:700;white-space:nowrap">🔔 ${pend.length} novidade(s)</span>`:''}
         ${pend.length&&pode?`<button class="btn btn-primary btn-sm" style="margin-left:8px;flex-shrink:0" onclick="event.stopPropagation();eprocVisto('${c.id}')">✔ Visto</button>`:''}
         <button class="btn btn-ghost btn-sm" style="margin-left:4px;flex-shrink:0;color:var(--text3);font-size:11px" onclick="event.stopPropagation();openDetail('${c.id}')" title="Ver cadastro completo">👤 Ver</button>
       </div>
-      ${nov}${falha}
+      ${nov}${_mirAvisosHtml(c)}${falha}
       ${ativos.length?`<div style="display:flex;flex-direction:column;gap:6px;padding:10px 16px">${linhas}</div>`:(e.retrato?'<div style="padding:10px 16px;font-size:12.5px;color:var(--text3)">Nenhum processo ativo.</div>':'')}
       ${inatHtml}
     </div>`;
@@ -4774,6 +4777,52 @@ function eprocCSV(){
   const a=document.createElement('a');
   a.href=URL.createObjectURL(new Blob(['﻿'+rows.join('\n')],{type:'text/csv;charset=utf-8'}));
   a.download='processos_ecac_'+new Date().toISOString().slice(0,10)+'.csv'; a.click();
+}
+
+
+// ── 📢 MEU IMPOSTO DE RENDA: avisos e detalhes de cada declaração ───────────
+// c.mir = { lidoEm, alertas:[{codigo,titulo,descricao,links:[{exercicio,titulo}]}],
+//           anos:{ano:{situacao,resultado,valor,tipo}} }  (vem da Consulta e-CAC)
+function _mirValor(v){return (typeof v==='number'&&v)?v.toLocaleString('pt-BR',{style:'currency',currency:'BRL'}):'';}
+function _mirAvisoTxt(a){return (a.titulo||'')+(a.descricao?' — '+a.descricao:'')+((a.links||[]).length?' ('+a.links.map(l=>[l.exercicio,l.titulo].filter(Boolean).join(' · ')).join('; ')+')':'');}
+function mirExInfo(c,yr){
+  const d=c.mir?.anos?.[yr]; if(!d)return '';
+  const partes=[d.situacao,[d.resultado,_mirValor(d.valor)].filter(Boolean).join(' '),d.tipo&&d.tipo!=='Original'?d.tipo:''].filter(Boolean);
+  return `<div style="margin-top:4px;font-size:11.5px;color:var(--text3)" title="Lido no Meu Imposto de Renda em ${esc(c.mir.lidoEm||'')}">🛰️ e-CAC: ${esc(partes.join(' · '))}</div>`;
+}
+function _mirAvisosHtml(c,pad){
+  const al=c.mir?.alertas||[]; if(!al.length)return '';
+  return `<div style="padding:${pad||'10px 16px'};background:rgba(220,38,38,.05);border-bottom:1px solid var(--border);display:flex;flex-direction:column;gap:4px">${al.map(a=>`<div style="font-size:12.5px;color:var(--text)">📢 <b>${esc(a.titulo||'Aviso')}</b>${a.descricao?` — ${esc(a.descricao)}`:''}${(a.links||[]).length?`<div style="font-size:11.5px;color:var(--text3);margin-left:20px">${a.links.map(l=>esc([l.exercicio,l.titulo].filter(Boolean).join(' · '))).join('<br>')}</div>`:''}</div>`).join('')}<div style="font-size:10.5px;color:var(--text3)">Avisos do Meu Imposto de Renda · lido em ${esc(c.mir.lidoEm||'—')}</div></div>`;
+}
+function mirDetalheHtml(c){
+  const al=c.mir?.alertas||[]; if(!al.length)return '';
+  return `<div class="section-hd" style="color:#dc2626">📢 Avisos no Meu Imposto de Renda</div><div style="border:1px solid rgba(220,38,38,.3);border-radius:10px;overflow:hidden;margin-bottom:18px">${_mirAvisosHtml(c,'12px 16px')}</div>`;
+}
+// Grava os avisos/detalhes lidos (js.resultados[].mir) no cadastro. Aviso que
+// não existia na leitura anterior vira novidade 🔔 em "📂 Processos e-CAC"
+// (some com o ✔ Visto). Idempotente por "lidoEm".
+async function mirAplicar(resultados){
+  const chaveA=a=>[a.codigo,a.titulo,a.descricao,(a.links||[]).map(l=>l.exercicio+'|'+l.titulo).join(',')].join('#');
+  const mudados=[]; let nAv=0;
+  for(const r of (resultados||[])){
+    if(!r||!r.mir)continue;
+    const cpf=r.cpf_digits||_digits(r.cpf);
+    const c=allClients.find(x=>_digits(x.cpfCnpj)===cpf); if(!c)continue;
+    if(c.mir&&c.mir.lidoEm===r.mir.lidoEm)continue;
+    const antes=new Set((c.mir?.alertas||[]).map(chaveA));
+    const novos=(r.mir.alertas||[]).filter(a=>!antes.has(chaveA(a)));
+    c.mir={lidoEm:r.mir.lidoEm,alertas:r.mir.alertas||[],anos:r.mir.anos||{}};
+    if(novos.length){
+      if(!c.eproc)c.eproc={pendentes:[]};
+      if(!c.eproc.pendentes)c.eproc.pendentes=[];
+      novos.forEach(a=>c.eproc.pendentes.push({tipo:'AVISO_MIR',processo:'MIR',texto:'aviso: '+_mirAvisoTxt(a),detectadoEm:r.mir.lidoEm}));
+      nAv+=novos.length;
+    }
+    mudados.push(c);
+  }
+  if(mudados.length)await _eprocGravar(mudados);
+  if(typeof currentView!=='undefined'&&currentView==='processos')renderProcessos();
+  return {n:mudados.length,nAv};
 }
 
 // ── QUICK EDIT ────────────────────────────────────────────────────────────────
