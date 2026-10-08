@@ -109,6 +109,22 @@ td{padding:10px 14px;font-size:13px}
 .dot-impugnar{background:var(--orange)}
 .dot-dda{background:var(--orange)}
 .dot-outro{background:#64748b}
+
+/* status do e-CAC (padronização out/2026) */
+.badge-recepcionada{background:rgba(6,182,212,.12);color:var(--cyan)}
+.badge-reprocessamento{background:rgba(217,119,6,.13);color:#d97706}
+.badge-pix{background:rgba(13,148,136,.13);color:#0d9488}
+.badge-pendencias{background:rgba(239,68,68,.12);color:var(--red)}
+.badge-intimacao{background:rgba(190,18,60,.13);color:#be123c}
+.badge-analise{background:rgba(234,88,12,.12);color:#ea580c}
+.badge-reclassificar{background:rgba(100,116,139,.10);color:#64748b;border:1px dashed rgba(100,116,139,.5)}
+.dot-recepcionada{background:var(--cyan)}
+.dot-reprocessamento{background:#d97706}
+.dot-pix{background:#0d9488}
+.dot-pendencias{background:var(--red)}
+.dot-intimacao{background:#be123c}
+.dot-analise{background:#ea580c}
+.dot-reclassificar{background:#94a3b8}
 .status-dots{display:inline-flex;align-items:center;gap:2px;margin-right:6px;vertical-align:middle}
 /* MODAL */
 .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:100;display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(3px)}
@@ -359,16 +375,21 @@ body.exercicios-level .full-edit-only{display:none!important}
   <!-- Declarações: rola se não couber -->
   <nav class="nav-decl">
     <div class="nav-section-label" style="padding:4px 8px 3px">⚡ Ação Necessária</div>
-    <button class="nav-item" onclick="showMalhaSemDDA()" id="nav-malha-sdda"><span class="nav-icon"><span class="status-dot dot-malha" style="width:8px;height:8px"></span></span>Malha s/ DDA<span class="nav-count" id="navcount-malha-sdda"></span></button>
-    <button class="nav-item" onclick="showDecl('impugnar')" id="nav-impugnar"><span class="nav-icon"><span class="status-dot dot-impugnar" style="width:8px;height:8px"></span></span>Impugnar<span class="nav-count" id="navcount-impugnar"></span></button>
-    <div class="nav-section-label" style="padding:10px 8px 3px">Acompanhamento</div>
-    <button class="nav-item" onclick="showDecl('malha')" id="nav-malha"><span class="nav-icon"><span class="status-dot dot-malha" style="width:8px;height:8px"></span></span>Em Malha<span class="nav-count" id="navcount-malha"></span></button>
-    <button class="nav-item" onclick="showDecl('tmanual')" id="nav-tmanual"><span class="nav-icon"><span class="status-dot dot-tmanual" style="width:8px;height:8px"></span></span>Ret. Trab. Manual<span class="nav-count" id="navcount-tmanual"></span></button>
-    <button class="nav-item" onclick="showDecl('fila')" id="nav-fila"><span class="nav-icon"><span class="status-dot dot-fila" style="width:8px;height:8px"></span></span>Em Fila de Restituição<span class="nav-count" id="navcount-fila"></span></button>
-    <button class="nav-item" onclick="showDecl('transmitida')" id="nav-transmitida"><span class="nav-icon"><span class="status-dot dot-transmitida" style="width:8px;height:8px"></span></span>Transmitida<span class="nav-count" id="navcount-transmitida"></span></button>
+    <button class="nav-item" onclick="showMalhaSemDDA()" id="nav-malha-sdda"><span class="nav-icon"><span class="status-dot dot-pendencias" style="width:8px;height:8px"></span></span>Pend./Intim. s/ DDA<span class="nav-count" id="navcount-malha-sdda"></span></button>
+    <button class="nav-item" onclick="showDecl('impugnar')" id="nav-impugnar"><span class="nav-icon"><span class="status-dot dot-impugnar" style="width:8px;height:8px"></span></span>⚖️ Impugnar<span class="nav-count" id="navcount-impugnar"></span></button>
+    <button class="nav-item" onclick="showDecl('reclassificar')" id="nav-reclassificar"><span class="nav-icon"><span class="status-dot dot-reclassificar" style="width:8px;height:8px"></span></span>A reclassificar<span class="nav-count" id="navcount-reclassificar"></span></button>
+    <div class="nav-section-label" style="padding:10px 8px 3px">Acompanhamento (status e-CAC)</div>
+    <button class="nav-item" onclick="showDecl('recepcionada')" id="nav-recepcionada"><span class="nav-icon"><span class="status-dot dot-recepcionada" style="width:8px;height:8px"></span></span>Recepcionada<span class="nav-count" id="navcount-recepcionada"></span></button>
     <button class="nav-item" onclick="showDecl('processamento')" id="nav-processamento"><span class="nav-icon"><span class="status-dot dot-processamento" style="width:8px;height:8px"></span></span>Em Processamento<span class="nav-count" id="navcount-processamento"></span></button>
-    <button class="nav-item" onclick="showDecl('impugnacao')" id="nav-impugnacao"><span class="nav-icon"><span class="status-dot dot-impugnacao" style="width:8px;height:8px"></span></span>Impugnação<span class="nav-count" id="navcount-impugnacao"></span></button>
     <button class="nav-item" onclick="showDecl('processada')" id="nav-processada"><span class="nav-icon"><span class="status-dot dot-processada" style="width:8px;height:8px"></span></span>Processada<span class="nav-count" id="navcount-processada"></span></button>
+    <button class="nav-item" onclick="showDecl('fila')" id="nav-fila"><span class="nav-icon"><span class="status-dot dot-fila" style="width:8px;height:8px"></span></span>Em Fila de Restituição<span class="nav-count" id="navcount-fila"></span></button>
+    <button class="nav-item" onclick="showDecl('pix')" id="nav-pix"><span class="nav-icon"><span class="status-dot dot-pix" style="width:8px;height:8px"></span></span>Aguardando Chave PIX CPF<span class="nav-count" id="navcount-pix"></span></button>
+    <button class="nav-item" onclick="showDecl('pendencias')" id="nav-pendencias"><span class="nav-icon"><span class="status-dot dot-pendencias" style="width:8px;height:8px"></span></span>Com Pendências<span class="nav-count" id="navcount-pendencias"></span></button>
+    <button class="nav-item" onclick="showDecl('intimacao')" id="nav-intimacao"><span class="nav-icon"><span class="status-dot dot-intimacao" style="width:8px;height:8px"></span></span>Intimação Emitida<span class="nav-count" id="navcount-intimacao"></span></button>
+    <button class="nav-item" onclick="showDecl('analise')" id="nav-analise"><span class="nav-icon"><span class="status-dot dot-analise" style="width:8px;height:8px"></span></span>Aguardando Análise de Documentos<span class="nav-count" id="navcount-analise"></span></button>
+    <button class="nav-item" onclick="showDecl('tmanual')" id="nav-tmanual"><span class="nav-icon"><span class="status-dot dot-tmanual" style="width:8px;height:8px"></span></span>Em Tratamento Manual<span class="nav-count" id="navcount-tmanual"></span></button>
+    <button class="nav-item" onclick="showDecl('reprocessamento')" id="nav-reprocessamento"><span class="nav-icon"><span class="status-dot dot-reprocessamento" style="width:8px;height:8px"></span></span>Em Reprocessamento<span class="nav-count" id="navcount-reprocessamento"></span></button>
+    <button class="nav-item" onclick="showDecl('impugnacao')" id="nav-impugnacao"><span class="nav-icon"><span class="status-dot dot-impugnacao" style="width:8px;height:8px"></span></span>⚖️ Impugnação<span class="nav-count" id="navcount-impugnacao"></span></button>
     <button class="nav-item" onclick="navClientFilter('PROCP','nav-proc')" id="nav-proc"><span class="nav-icon">⚖️</span>Processo Pendente<span class="nav-count" id="navcount-proc"></span></button>
     <button class="nav-item" onclick="showView('processos')" id="nav-processos"><span class="nav-icon">📂</span>Processos e-CAC<span class="nav-count" id="navcount-eproc"></span></button>
     <button class="nav-item" onclick="navClientFilter('PERR','nav-perr')" id="nav-perr"><span class="nav-icon">💰</span>PER a Receber<span class="nav-count" id="navcount-perr"></span></button>
@@ -498,14 +519,19 @@ body.exercicios-level .full-edit-only{display:none!important}
             <label>Status da Declaração</label>
             <select id="rel-status">
               <option value="TODOS">Todos</option>
-              <option value="transmitida">Transmitida</option>
+              <option value="recepcionada">Recepcionada</option>
               <option value="processamento">Em Processamento</option>
-              <option value="malha">Em Malha</option>
-              <option value="fila">Em Fila de Restituição</option>
-              <option value="tmanual">Ret. Trab. Manual</option>
-              <option value="impugnacao">Impugnação</option>
-              <option value="impugnar">Impugnar</option>
               <option value="processada">Processada</option>
+              <option value="fila">Em Fila de Restituição</option>
+              <option value="pix">Aguardando Chave PIX CPF</option>
+              <option value="pendencias">Com Pendências</option>
+              <option value="intimacao">Intimação Emitida</option>
+              <option value="analise">Aguardando Análise de Documentos</option>
+              <option value="tmanual">Em Tratamento Manual</option>
+              <option value="reprocessamento">Em Reprocessamento</option>
+              <option value="impugnar">⚖️ Impugnar (marcador)</option>
+              <option value="impugnacao">⚖️ Impugnação (marcador)</option>
+              <option value="reclassificar">A reclassificar (status antigo)</option>
               <option value="nao_entregue">🚫 Não Entregue (declaração ausente)</option>
             </select>
           </div>
@@ -663,7 +689,7 @@ body.exercicios-level .full-edit-only{display:none!important}
       <div style="padding:14px 18px 16px;display:flex;flex-direction:column;gap:13px">
         <div id="eproc-cards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(168px,1fr));gap:10px"></div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-          <input type="text" id="eproc-busca" oninput="renderProcessosLista()" placeholder="Filtrar por nome, CPF ou nº do processo…" style="flex:1;min-width:220px;font-size:13px;padding:8px 11px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'DM Sans',sans-serif;outline:none">
+          <input type="text" id="eproc-busca" oninput="renderProcessosLista()" placeholder="Filtrar por nome, CPF, nº do processo, localização, documento ou aviso…" style="flex:1;min-width:220px;font-size:13px;padding:8px 11px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'DM Sans',sans-serif;outline:none">
           <button class="btn btn-ghost btn-sm" onclick="eprocCSV()">⬇️ Baixar CSV</button>
         </div>
         <div style="font-size:11.5px;color:var(--text3);line-height:1.6;border-top:1px solid var(--border);padding-top:10px">
@@ -832,14 +858,22 @@ body.exercicios-level .full-edit-only{display:none!important}
       <div class="form-group"><label>Exercício</label><input type="text" id="ex-year-disp"></div>
       <div class="form-group"><label>Categoria</label>
         <select id="ex-cat" onchange="toggleExCatBoxes()">
+          <option value="RECEPCIONADA">🔵 Recepcionada</option>
           <option value="EM PROCESSAMENTO">🔄 Em Processamento</option>
-          <option value="TRANSMITIDA">🔵 Transmitida</option>
-          <option value="EM MALHA">🔴 Em Malha</option>
-          <option value="EM FILA DE RESTITUIÇÃO">🟢 Em Fila de Restituição</option>
           <option value="PROCESSADA">✅ Processada</option>
-          <option value="TRABALHO MANUAL RFB">⚙️ Em Tratamento Manual</option>
-          <option value="IMPUGNAÇÃO">⚖️ Impugnação</option>
-          <option value="IMPUGNAR">🟠 Impugnar</option>
+          <option value="EM FILA DE RESTITUIÇÃO">🟢 Em Fila de Restituição</option>
+          <option value="AGUARDANDO CHAVE PIX CPF">🔑 Aguardando Chave PIX CPF</option>
+          <option value="COM PENDÊNCIAS">🔴 Com Pendências</option>
+          <option value="INTIMAÇÃO EMITIDA">📮 Intimação Emitida</option>
+          <option value="AGUARDANDO ANÁLISE DE DOCUMENTOS">📄 Aguardando Análise de Documentos</option>
+          <option value="EM TRATAMENTO MANUAL">⚙️ Em Tratamento Manual</option>
+          <option value="EM REPROCESSAMENTO">🔁 Em Reprocessamento</option>
+        </select></div>
+      <div class="form-group"><label>Controle do escritório</label>
+        <select id="ex-marcador" onchange="toggleExCatBoxes()">
+          <option value="">—</option>
+          <option value="impugnar">⚖️ Impugnar</option>
+          <option value="impugnacao">⚖️ Impugnação</option>
         </select></div>
     </div>
     <div class="form-group">
@@ -1010,12 +1044,16 @@ body.exercicios-level .full-edit-only{display:none!important}
     <button class="close-btn" style="margin-left:auto" onclick="closeQE()">✕</button>
   </div>
   <select id="qe-cat">
+    <option value="RECEPCIONADA">🔵 Recepcionada</option>
     <option value="EM PROCESSAMENTO">🔄 Em Processamento</option>
-    <option value="TRANSMITIDA">🔵 Transmitida</option>
-    <option value="EM MALHA">🔴 Em Malha</option>
-    <option value="EM FILA DE RESTITUIÇÃO">🟢 Em Fila de Restituição</option>
     <option value="PROCESSADA">✅ Processada</option>
-    <option value="TRABALHO MANUAL RFB">⚙️ Em Tratamento Manual</option>
+    <option value="EM FILA DE RESTITUIÇÃO">🟢 Em Fila de Restituição</option>
+    <option value="AGUARDANDO CHAVE PIX CPF">🔑 Aguardando Chave PIX CPF</option>
+    <option value="COM PENDÊNCIAS">🔴 Com Pendências</option>
+    <option value="INTIMAÇÃO EMITIDA">📮 Intimação Emitida</option>
+    <option value="AGUARDANDO ANÁLISE DE DOCUMENTOS">📄 Aguardando Análise de Documentos</option>
+    <option value="EM TRATAMENTO MANUAL">⚙️ Em Tratamento Manual</option>
+    <option value="EM REPROCESSAMENTO">🔁 Em Reprocessamento</option>
   </select>
   <textarea id="qe-detalhe" placeholder="Detalhes / observação (opcional)…"></textarea>
   <div style="display:flex;justify-content:flex-end;gap:7px;margin-top:10px">
@@ -2101,6 +2139,38 @@ async function init(){
     if(_oCnt2)ghSave();
     console.log(`[mig] Outro→Processada (v2 valor-data): ${_oCnt2} clientes atualizados`);
   }
+  // ── MIGRAÇÃO ÚNICA: categorias = status do e-CAC (out/2026) ──
+  // TRANSMITIDA → RECEPCIONADA; TRABALHO MANUAL RFB → EM TRATAMENTO MANUAL
+  // (mantém os detalhes). IMPUGNAR / IMPUGNAÇÃO viram marcador do escritório
+  // (c.exMarcador) e o texto fica como está ("A reclassificar") até a
+  // Consulta e-CAC trazer o status. EM MALHA também fica até a consulta.
+  if(!localStorage.getItem('mig_status_ecac_v1')){
+    let _sCnt=0;
+    for(const c of allClients){
+      let changed=false;
+      for(const yr of Object.keys(c.exercicios||{})){
+        const st=c.exercicios[yr]||'';
+        const sp=splitStatus(st);
+        let novo=null;
+        if(sp.main==='TRANSMITIDA')novo=joinStatus('RECEPCIONADA',sp.det);
+        else if(sp.main==='TRABALHO MANUAL RFB'||sp.main==='TRABALHO MANUAL')novo=joinStatus('EM TRATAMENTO MANUAL',sp.det);
+        if(novo&&novo!==st){
+          c.exercicios[yr]=novo;
+          if(!c.historico)c.historico=[];
+          c.historico.unshift({ts:new Date().toISOString(),exercicio:yr,de:st,para:novo,usuario:'padronização e-CAC'});
+          changed=true;
+        }
+        if(sp.main==='IMPUGNAR'||sp.main==='IMPUGNAÇÃO'){
+          if(!c.exMarcador)c.exMarcador={};
+          if(!c.exMarcador[yr]){c.exMarcador[yr]=sp.main==='IMPUGNAR'?'impugnar':'impugnacao';changed=true;}
+        }
+      }
+      if(changed){await dbPut('clientes',c);_sCnt++;}
+    }
+    localStorage.setItem('mig_status_ecac_v1','1');
+    if(_sCnt)ghSave();
+    console.log(`[mig] Padronização status e-CAC: ${_sCnt} clientes atualizados`);
+  }
   // ── FIM MIGRAÇÃO ──
   filteredClients=[...allClients];
   // VIEWER MODE: auto-login como visualizador, sem pedir senha
@@ -2158,7 +2228,7 @@ function showView(v){
   const el=document.getElementById('view-'+v);
   if(el)el.style.display='block';
   // Determina qual(is) nav-item(s) deve(m) ficar ativo(s)
-  const _navIdFor=s=>(s==='malha'&&declSemDDAOnly)?'malha-sdda':s;
+  const _navIdFor=s=>declSemDDAOnly?'malha-sdda':s;
   if(v==='detalhe'){
     const set=(prevView==='decl'&&prevDeclStatuses.size)?prevDeclStatuses:new Set(['lista']);
     set.forEach(s=>{const e=document.getElementById('nav-'+_navIdFor(s));if(e)e.classList.add('active');});
@@ -2191,26 +2261,83 @@ function setDeclYear(yr){
 }
 
 // ── HELPERS ───────────────────────────────────────────────────────────────────
+// ── CATEGORIAS = STATUS DO e-CAC (padronizadas em out/2026) ──────────────────
+// O status gravado é "<STATUS> — <detalhes>". As categorias são exatamente os
+// status que a Receita mostra no Meu Imposto de Renda. Os prefixos antigos
+// continuam sendo reconhecidos: TRANSMITIDA = Recepcionada, TRABALHO MANUAL RFB
+// = Em Tratamento Manual; EM MALHA / IMPUGNAR / IMPUGNAÇÃO / outros sem
+// correspondência ficam "A reclassificar" até a Consulta e-CAC trazer o status.
+// Impugnar / Impugnação viraram MARCADORES do escritório (c.exMarcador[ano]).
+const ECAC_STATUS=[
+  {v:'RECEPCIONADA',cls:'recepcionada',label:'Recepcionada',icon:'🔵'},
+  {v:'EM PROCESSAMENTO',cls:'processamento',label:'Em Processamento',icon:'🔄'},
+  {v:'PROCESSADA',cls:'processada',label:'Processada',icon:'✅'},
+  {v:'EM FILA DE RESTITUIÇÃO',cls:'fila',label:'Em Fila de Restituição',icon:'🟢'},
+  {v:'AGUARDANDO CHAVE PIX CPF',cls:'pix',label:'Aguardando Chave PIX CPF',icon:'🔑'},
+  {v:'COM PENDÊNCIAS',cls:'pendencias',label:'Com Pendências',icon:'🔴',dda:true},
+  {v:'INTIMAÇÃO EMITIDA',cls:'intimacao',label:'Intimação Emitida',icon:'📮',dda:true},
+  {v:'AGUARDANDO ANÁLISE DE DOCUMENTOS',cls:'analise',label:'Aguardando Análise de Documentos',icon:'📄'},
+  {v:'EM TRATAMENTO MANUAL',cls:'tmanual',label:'Em Tratamento Manual',icon:'⚙️'},
+  {v:'EM REPROCESSAMENTO',cls:'reprocessamento',label:'Em Reprocessamento',icon:'🔁'},
+];
+const ECAC_DDA_CLS=new Set(ECAC_STATUS.filter(s=>s.dda).map(s=>s.cls));   // pendencias, intimacao
+const ECAC_MALHA_CLS=new Set(['pendencias','intimacao','analise']);         // "estão em malha"
+// prefixos antigos (gravados antes da padronização)
+const _ST_LEGADO=[
+  ['TRABALHO MANUAL RFB','tmanual'],['TRABALHO MANUAL','tmanual'],['TRANSMITIDA','recepcionada'],
+  ['EM MALHA','reclassificar'],['IMPUGNAÇÃO','reclassificar'],['IMPUGNAR','reclassificar'],
+  ['PERDCOMP','reclassificar'],['PARCELAMENTO','reclassificar'],['DDA','reclassificar'],
+  ['AGUARDANDO','reclassificar'],['NÃO DECLARADA','reclassificar'],['OUTRO','reclassificar']];
+function _stNorm(s){return String(s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toUpperCase().replace(/\s+/g,' ').trim();}
+function _stPrefixLen(st,pref){
+  // quantos caracteres do texto ORIGINAL correspondem ao prefixo (ignorando acento/caixa)
+  const alvo=_stNorm(pref);
+  if(!_stNorm(st).startsWith(alvo))return 0;
+  for(let k=alvo.length;k<=st.length;k++){if(_stNorm(st.slice(0,k))===alvo){
+    // não corta no meio de uma palavra (ex.: "PROCESSADAS")
+    if(k<st.length&&/[A-Za-zÀ-ÿ0-9]/.test(st[k]))return 0;
+    return k;}}
+  return 0;
+}
+// Separa "<STATUS> — <detalhes>". Devolve {main, det, cls, legado, cat}
+function splitStatus(st){
+  st=String(st||'');
+  const cands=[...ECAC_STATUS.map(s=>[s.v,s.cls,s]),..._ST_LEGADO.map(([v,cls])=>[v,cls,null])]
+    .sort((a,b)=>b[0].length-a[0].length);
+  for(const [v,cls,cat] of cands){
+    const n=_stPrefixLen(st,v);
+    if(n){
+      const det=st.slice(n).replace(/^\s*[\-—–:]\s*/,'').trim();
+      return {main:v,det,cls,legado:!cat,cat:cat||ECAC_STATUS.find(s=>s.cls===cls)||null};
+    }
+  }
+  return {main:'',det:st.trim(),cls:'',legado:false,cat:null};
+}
 function classifyStatus(s){
   if(!s)return{cls:'outro',label:'—'};
-  const u=s.toUpperCase();
-  // IMPORTANTE: usa startsWith para não capturar palavras no campo Detalhes
-  if(u.startsWith('TRABALHO MANUAL'))return{cls:'tmanual',label:'Trat. Manual'};
-  if(u.startsWith('EM PROCESSAMENTO'))return{cls:'processamento',label:'Em Processamento'};
-  if(u.startsWith('PROCESSADA'))return{cls:'processada',label:'Processada'};
-  if(u.startsWith('EM MALHA'))return{cls:'malha',label:'Em Malha'};
-  if(u.startsWith('PERDCOMP')||u.startsWith('PARCELA'))return{cls:'per',label:'PERDCOMP'};
-  if(u.startsWith('TRANSMIT'))return{cls:'transmitida',label:'Transmitida'};
-  if(u.startsWith('EM FILA'))return{cls:'fila',label:'Em Fila'};
-  if(u.startsWith('IMPUGNAR'))return{cls:'impugnar',label:'Impugnar'};
-  if(u.startsWith('IMPUGN'))return{cls:'impugnacao',label:'Impugnação'};
-  if(u.startsWith('DDA'))return{cls:'dda',label:'DDA'};
-  if(u.startsWith('AGUARD'))return{cls:'outro',label:'Aguardando'};
-  // Fallback para dados antigos sem prefixo "EM "
-  if(u.includes('MALHA'))return{cls:'malha',label:'Em Malha'};
-  if(u.includes('FILA'))return{cls:'fila',label:'Em Fila'};
+  const sp=splitStatus(s);
+  if(sp.cls==='reclassificar')return{cls:'reclassificar',label:'A reclassificar'};
+  if(sp.cat)return{cls:sp.cat.cls,label:sp.cat.label};
+  const u=_stNorm(s);
+  if(u.includes('MALHA'))return{cls:'reclassificar',label:'A reclassificar'};
+  if(u.includes('FILA'))return{cls:'fila',label:'Em Fila de Restituição'};
   return{cls:'outro',label:'Outro'};
 }
+// Monta o texto gravado a partir do status (valor do catálogo) + detalhes
+function joinStatus(v,det){return det?`${v} — ${det}`:v;}
+// Marcador do escritório no exercício: 'impugnar' | 'impugnacao' | ''
+function exMarcador(c,yr){
+  const m=c?.exMarcador?.[yr]; if(m)return m==='-'?'':m;   // '-' = "nenhum" escolhido à mão
+  const sp=splitStatus(c?.exercicios?.[yr]||'');
+  if(sp.main==='IMPUGNAR')return'impugnar';
+  if(sp.main==='IMPUGNAÇÃO')return'impugnacao';
+  return'';
+}
+// Chaves de agrupamento de um exercício (status + marcador)
+function declKeys(c,yr,v){const k=[classifyStatus(v).cls];const m=exMarcador(c,yr);if(m)k.push(m);return k;}
+function exEmDDA(c,yr,v){return ECAC_DDA_CLS.has(classifyStatus(v).cls);}
+function statusOptionsHtml(){return ECAC_STATUS.map(s=>`<option value="${s.v}">${s.icon} ${s.label}</option>`).join('');}
+
 // ── SEGURANÇA: escapa HTML para evitar XSS em dados de usuários ───────────────
 function esc(s){
   if(s==null)return'';
@@ -2246,42 +2373,39 @@ function fmtBRL(v){
   return'R$ '+Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
 }
 function initials(nome){return nome.split(' ').slice(0,2).map(w=>w[0]).join('')}
-const STATUS_LABELS={processada:'Processada',processamento:'Em Processamento',tmanual:'Em Tratamento Manual',malha:'Em Malha',per:'PERDCOMP',transmitida:'Transmitida',fila:'Em Fila de Restituição',impugnacao:'Impugnação',impugnar:'Impugnar',dda:'DDA Aberto',outro:'Outro'};
+const STATUS_LABELS=Object.assign({malha:'Em Malha',per:'PERDCOMP',transmitida:'Recepcionada',dda:'DDA',impugnacao:'Impugnação',impugnar:'Impugnar',reclassificar:'A reclassificar',outro:'Outro'},Object.fromEntries(ECAC_STATUS.map(s=>[s.cls,s.label])));
 function statusDots(c){
   // Ponto vermelho apenas se houver exercício em malha SEM c.dda[yr].feito=true
   if(!c.exercicios)return'';
   const temMalhaSemDDA=Object.entries(c.exercicios).some(([yr,st])=>{
-    if(classifyStatus(st).cls!=='malha')return false;
+    if(!ECAC_DDA_CLS.has(classifyStatus(st).cls))return false;
     return !c.dda?.[yr]?.feito;
   });
-  if(temMalhaSemDDA)return'<span class="status-dots"><span class="status-dot dot-malha" title="Em Malha – DDA pendente"></span></span>';
+  if(temMalhaSemDDA)return'<span class="status-dots"><span class="status-dot dot-pendencias" title="Com Pendências / Intimação Emitida – DDA pendente"></span></span>';
   return'';
 }
 
 // ── DECLARATIONS VIEW ──────────────────────────────────────────────────────────
-const DECL_INFO={
-  transmitida:{label:'Transmitida',dot:'transmitida',cls:'transmitida'},
-  processamento:{label:'Em Processamento',dot:'processamento',cls:'processamento'},
-  malha:{label:'Em Malha',dot:'malha',cls:'malha'},
-  fila:{label:'Em Fila de Restituição',dot:'fila',cls:'fila'},
-  tmanual:{label:'Em Tratamento Manual',dot:'tmanual',cls:'tmanual'},
-  impugnacao:{label:'Impugnação',dot:'impugnacao',cls:'impugnacao'},
-  impugnar:{label:'Impugnar',dot:'impugnar',cls:'impugnar'},
-  processada:{label:'Processada',dot:'processada',cls:'processada'},
+const DECL_INFO=Object.assign(Object.fromEntries(ECAC_STATUS.map(s=>[s.cls,{label:s.label,dot:s.cls,cls:s.cls}])),{
+  impugnar:{label:'⚖️ Impugnar',dot:'impugnar',cls:'impugnar'},
+  impugnacao:{label:'⚖️ Impugnação',dot:'impugnacao',cls:'impugnacao'},
+  reclassificar:{label:'A reclassificar (status antigo)',dot:'reclassificar',cls:'reclassificar'},
   nao_entregue:{label:'Não Entregue',dot:'nao_entregue',cls:'nao_entregue'},
-};
+});
 function declExMatch(c,yr,v){
-  if(!currentDeclStatuses.has(classifyStatus(v).cls))return false;
+  if(!declKeys(c,yr,v).some(k=>currentDeclStatuses.has(k)))return false;
   if(declSemDDAOnly&&c.dda&&c.dda[yr]&&c.dda[yr].feito)return false;
   return true;
 }
 function renderDecl(){
   if(!currentDeclStatuses.size)return;
   // Título da view — único ou múltiplos status
-  if(currentDeclStatuses.size===1){
+  if(declSemDDAOnly){
+    document.getElementById('decl-view-title').innerHTML='<span class="status-dot dot-pendencias" style="width:10px;height:10px"></span>Com Pendências / Intimação Emitida — sem DDA feito';
+  } else if(currentDeclStatuses.size===1){
     const info=DECL_INFO[[...currentDeclStatuses][0]];
     document.getElementById('decl-view-title').innerHTML=
-      `<span class="status-dot dot-${info.dot}" style="width:10px;height:10px"></span>${declSemDDAOnly?'Malha s/ DDA':info.label}`;
+      `<span class="status-dot dot-${info.dot}" style="width:10px;height:10px"></span>${info.label}`;
   } else {
     document.getElementById('decl-view-title').innerHTML=
       [...currentDeclStatuses].map(s=>{
@@ -2326,7 +2450,8 @@ function renderDecl(){
     const exs=Object.entries(c.exercicios||{})
       .filter(([yr,st])=>declExMatch(c,yr,st)&&(!currentDeclYear||yr===currentDeclYear))
       .sort((a,b)=>b[0]-a[0]);
-    const dda=currentDeclStatuses.has('malha');
+    const dda=[...currentDeclStatuses].some(k=>ECAC_DDA_CLS.has(k));
+    const _mostraSt=['impugnar','impugnacao','reclassificar'].some(k=>currentDeclStatuses.has(k))||currentDeclStatuses.size>1;
     // badge do cartão usa o status do primeiro exercício ou neutro em multi-seleção
     const _cardCls=currentDeclStatuses.size===1?[...currentDeclStatuses][0]:(classifyStatus(exs[0]?.[1]||'').cls||'outro');
     return`<div class="malha-panel">
@@ -2347,11 +2472,13 @@ function renderDecl(){
               const info2=DECL_INFO[k];
               // strip category prefix from detail text
             }
-            const d=st.replace(/^[^—\-]*(—|-)\s*/,'').trim();
-            return d.length>70?d.slice(0,70)+'…':d;
+            const sp=splitStatus(st);
+            const pre=_mostraSt?((sp.legado&&sp.cls==='reclassificar')?sp.main:classifyStatus(st).label)+(sp.det?' — ':''):'';
+            const d=pre+(sp.main?sp.det:st.trim());
+            return d.length>80?d.slice(0,80)+'…':d;
           })();
           const ddaInfo=dda&&c.dda?.[yr]?`<span style="font-size:10px;color:var(--orange);margin-left:6px">${c.dda[yr].feito?'✅ DDA':'⏳ DDA pendente'}</span>`:'';
-          const impugInfo=currentDeclStatuses.has('impugnacao')&&classifyStatus(st).cls==='impugnacao'&&c.impugnacoes?.[yr]?.data?`<span style="font-size:10px;color:#ec4899;margin-left:6px">⚖️ ${c.impugnacoes[yr].data}</span>`:'';
+          const impugInfo=currentDeclStatuses.has('impugnacao')&&exMarcador(c,yr)==='impugnacao'&&c.impugnacoes?.[yr]?.data?`<span style="font-size:10px;color:#ec4899;margin-left:6px">⚖️ ${c.impugnacoes[yr].data}</span>`:'';
           return`<div class="malha-ex-chip" onclick="openExModal('${c.id}','${yr}')">
             <span class="malha-ex-year">${yr}</span>
             <span class="malha-ex-detail">${det||'—'}${ddaInfo}${impugInfo}</span>
@@ -2429,7 +2556,7 @@ function renderFilterChips(){
     {key:'PROCD',  label:'Proc. Decidido',cls:'proc-chip',    icon:'✅'},
     {key:'ATENCAO',label:'ATENÇÃO',       cls:'atencao-chip', icon:'⚠️'},
     {key:'PERR',   label:'<span style="font-size:10px;font-weight:800;letter-spacing:.6px;background:rgba(217,119,6,.15);color:#d97706;border:1px solid rgba(217,119,6,.35);border-radius:4px;padding:1px 5px;margin-right:3px">PER</span>A Receber',cls:'perr-chip',icon:''},
-    {key:'MALHA_SEM_DDA', label:'Malha s/ DDA', cls:'malha-chip', icon:'🔴'},
+    {key:'MALHA_SEM_DDA', label:'Pend./Intim. s/ DDA', cls:'malha-chip', icon:'🔴'},
   ];
   const isG1Active=k=>currentFilter===k&&activeFilters.size===0;
   const isG2Active=k=>activeFilters.has(k);
@@ -2480,7 +2607,7 @@ function clientHasPerAReceber(c){
 }
 function clientHasMalhaSemDDA(c){
   return Object.entries(c.exercicios||{}).some(([yr,st])=>{
-    if(classifyStatus(st).cls!=='malha')return false;
+    if(!ECAC_DDA_CLS.has(classifyStatus(st).cls))return false;
     return !c.dda?.[yr]?.feito;
   });
 }
@@ -2810,7 +2937,7 @@ function renderImpugnacao(){
   const impugClients=allClients.filter(c=>{
     if(q&&!(c.nome||'').toLowerCase().includes(q)&&!(c.cpfCnpj||'').includes(q))return false;
     if(!c.exercicios)return false;
-    return Object.values(c.exercicios).some(v=>classifyStatus(v).cls==='impugnacao');
+    return Object.keys(c.exercicios).some(yr=>exMarcador(c,yr)==='impugnacao');
   });
   document.getElementById('impugnacao-count').textContent=impugClients.length+' clientes';
   if(!impugClients.length){
@@ -2818,7 +2945,7 @@ function renderImpugnacao(){
     return;
   }
   document.getElementById('impugnacao-list').innerHTML=impugClients.map(c=>{
-    const impugExs=Object.entries(c.exercicios||{}).filter(([yr,st])=>classifyStatus(st).cls==='impugnacao').sort((a,b)=>b[0]-a[0]);
+    const impugExs=Object.entries(c.exercicios||{}).filter(([yr,st])=>exMarcador(c,yr)==='impugnacao').sort((a,b)=>b[0]-a[0]);
     return`<div class="impug-panel">
       <div class="impug-panel-hd" onclick="openDetail('${c.id}')">
         <span class="badge badge-impugnacao">Impugnação</span>
@@ -3401,8 +3528,8 @@ function openDetail(id){
           return`<div class="ex-item" style="cursor:pointer" onclick="openExModal('${c.id}','${yr}')">
             <div class="ex-item-year">${yr}</div>
             <div><span class="badge badge-${cat.cls}" style="margin-bottom:4px">${cat.label}</span>
-              <div class="ex-item-status">${(()=>{const cats2=['EM PROCESSAMENTO','PROCESSADA','EM MALHA','TRABALHO MANUAL RFB','TRANSMITIDA','EM FILA DE RESTITUIÇÃO','PERDCOMP','IMPUGNAÇÃO','IMPUGNAR','AGUARDANDO','NÃO DECLARADA','OUTRO'];const cm=cats2.find(o=>st.toUpperCase().startsWith(o));return cm?st.slice(cm.length).replace(/^\s*[\-\u2014]\s*/,'').trim():st;})()}</div>
-              ${recInfo}${impugInfo}${ddaInfo}${honInfo}${perInfo}${procInfo}${exAtencaoInfo}${mirExInfo(c,yr)}</div>
+              <div class="ex-item-status">${(()=>{const sp=splitStatus(st);return (sp.cls==='reclassificar'?'['+sp.main+'] ':'')+(sp.main?sp.det:st);})()}</div>
+              ${exMarcador(c,yr)?`<div style="margin-top:4px;font-size:11.5px;color:#ec4899;font-weight:700">⚖️ ${exMarcador(c,yr)==='impugnar'?'Impugnar':'Impugnação'}</div>`:''}${recInfo}${impugInfo}${ddaInfo}${honInfo}${perInfo}${procInfo}${exAtencaoInfo}${mirExInfo(c,yr)}</div>
             <div style="display:flex;gap:5px">${qeBtn}${editBtn}</div>
           </div>`;
         }).join('')}
@@ -3656,14 +3783,20 @@ function openExModal(clientId,year,focusPerIdx){
   const st=c?.exercicios?.[year]||'';
   document.getElementById('ex-year-disp').disabled=true;
   document.getElementById('ex-year-disp').value=year;
-  const cats=['EM PROCESSAMENTO','TRANSMITIDA','EM MALHA','EM FILA DE RESTITUIÇÃO','PROCESSADA','TRABALHO MANUAL RFB','IMPUGNAÇÃO','IMPUGNAR','AGUARDANDO','NÃO DECLARADA','OUTRO','PERDCOMP'];
-  const catMatch=cats.find(c2=>st.toUpperCase().startsWith(c2))||'EM PROCESSAMENTO';
+  const _sp=splitStatus(st);
+  const catMatch=(_sp.cat&&_sp.cls!=='reclassificar')?_sp.cat.v:'';
   const sel=document.getElementById('ex-cat');
-  if(!Array.from(sel.options).find(o=>o.value===catMatch)){
-    const opt=document.createElement('option');opt.value=catMatch;opt.textContent=catMatch;opt.dataset.legacy='1';sel.appendChild(opt);
+  sel.querySelectorAll('option[data-legacy]').forEach(o=>o.remove());
+  sel.dataset.legadoMain='';
+  if(!catMatch&&st){
+    // status antigo (ex.: EM MALHA) — fica como está até escolher o status do e-CAC
+    const opt=document.createElement('option');opt.value='';opt.dataset.legacy='1';
+    opt.textContent='⚠️ A reclassificar'+(_sp.main?' ('+_sp.main+')':'')+' — escolha o status do e-CAC';
+    sel.insertBefore(opt,sel.firstChild);sel.dataset.legadoMain=_sp.main||'';
   }
-  sel.value=catMatch;
-  const detPart=st.toUpperCase().startsWith(catMatch)?st.slice(catMatch.length).replace(/^\s*[\-—]\s*/,'').trim():st;
+  sel.value=catMatch||(st?'':'RECEPCIONADA');
+  document.getElementById('ex-marcador').value=exMarcador(c,year);
+  const detPart=_sp.main?_sp.det:st;
   document.getElementById('ex-detalhe').value=detPart;
   // Carregar data/valor recebimento
   const rec=c?.recebimentos?.[year]||{};
@@ -3672,7 +3805,7 @@ function openExModal(clientId,year,focusPerIdx){
   document.getElementById('ex-lote-hint').style.display='none';
   if(rec.data||rec.valor) updateExLoteHint();
   // Carregar DDA — mostra se for Em Malha OU se já houver dado de DDA (preservado)
-  const isMalha=catMatch==='EM MALHA';
+  const isMalha=['COM PENDÊNCIAS','INTIMAÇÃO EMITIDA'].includes(catMatch);
   const dda=c?.dda?.[year]||{};
   const temDDA=!!(dda.feito||dda.data);
   document.getElementById('ex-dda-box').style.display=(isMalha||temDDA)?'block':'none';
@@ -3680,7 +3813,7 @@ function openExModal(clientId,year,focusPerIdx){
   document.getElementById('ex-dda-data-row').style.display=dda.feito?'block':'none';
   document.getElementById('ex-dda-data').value=dda.data||'';
   // Carregar impugnação (apenas para IMPUGNAÇÃO)
-  const isImpug=catMatch==='IMPUGNAÇÃO';
+  const isImpug=exMarcador(c,year)==='impugnacao';
   const impug=c?.impugnacoes?.[year]||{};
   document.getElementById('ex-impug-box').style.display=isImpug?'block':'none';
   document.getElementById('ex-impug-data').value=impug.data||'';
@@ -3730,10 +3863,11 @@ function toggleExCatBoxes(){
   const impugBox=document.getElementById('ex-impug-box');
   // DDA: mostra se for Em Malha OU se já houver dado de DDA (preserva mesmo trocando o status)
   const temDDA=document.getElementById('ex-dda-feito').checked||document.getElementById('ex-dda-data').value.trim();
-  ddaBox.style.display=(cat==='EM MALHA'||temDDA)?'block':'none';
-  impugBox.style.display=cat==='IMPUGNAÇÃO'?'block':'none';
+  const marc=document.getElementById('ex-marcador').value;
+  ddaBox.style.display=(['COM PENDÊNCIAS','INTIMAÇÃO EMITIDA'].includes(cat)||temDDA)?'block':'none';
+  impugBox.style.display=marc==='impugnacao'?'block':'none';
   // Não limpa mais os dados do DDA ao trocar de categoria (preserva DDA feito/data)
-  if(cat!=='IMPUGNAÇÃO'){
+  if(marc!=='impugnacao'){
     document.getElementById('ex-impug-data').value='';
   }
 }
@@ -3884,15 +4018,21 @@ async function saveExModal(){
   const c=allClients.find(x=>x.id===exEditId);if(!c)return;
   const yr=exEditYear||document.getElementById('ex-year-disp').value;
   const det=document.getElementById('ex-detalhe').value.trim();
-  const cat=document.getElementById('ex-cat').value;
+  const _selCat=document.getElementById('ex-cat');
+  const cat=_selCat.value||_selCat.dataset.legadoMain||'';
+  const marc=document.getElementById('ex-marcador').value;
   const dataRec=document.getElementById('ex-data-rec').value.trim();
   const valorRec=parseBRLField(document.getElementById('ex-valor-rec').value);
   if(!c.exercicios)c.exercicios={};
   const anterior=c.exercicios[yr]||'';
-  const novo=det?`${cat} — ${det}`:cat;
+  const novo=cat?joinStatus(cat,det):det;
   c.exercicios[yr]=novo;
   if(!c.historico)c.historico=[];
-  c.historico.unshift({ts:new Date().toISOString(),exercicio:yr,de:anterior,para:novo,usuario:getCurrentUserName()});
+  if(novo!==anterior)c.historico.unshift({ts:new Date().toISOString(),exercicio:yr,de:anterior,para:novo,usuario:getCurrentUserName()});
+  // Marcador do escritório (Impugnar / Impugnação). '-' = removido à mão
+  if(!c.exMarcador)c.exMarcador={};
+  if(marc)c.exMarcador[yr]=marc;
+  else if(c.exMarcador[yr]||['IMPUGNAR','IMPUGNAÇÃO'].includes(splitStatus(novo).main))c.exMarcador[yr]='-';
   // Captura recebimento anterior (antes de sobrescrever) para sincronizar lote
   const oldRec=c.recebimentos?.[yr]?{...c.recebimentos[yr]}:null;
   // Salva recebimento
@@ -3917,7 +4057,7 @@ async function saveExModal(){
   }
   // Salva Impugnação
   if(!c.impugnacoes)c.impugnacoes={};
-  if(cat==='IMPUGNAÇÃO'){
+  if(marc==='impugnacao'){
     const impugData=document.getElementById('ex-impug-data').value.trim();
     if(impugData){c.impugnacoes[yr]={data:impugData};}
     else{delete c.impugnacoes[yr];}
@@ -4228,6 +4368,9 @@ async function saveClient(){
     honorariosPagos:editingHonorariosPagos||[]};
   // Remove campo legado perdcomp se existir
   if(existing?.perdcomp&&!(existing?.perdcomps?.length))obj.perdcomps=getPerdcomps(existing);
+  // Mantém TODO campo que o formulário não edita (ex.: novidades do e-Processo
+  // "eproc" e avisos do MIR "mir") — antes eram descartados ao salvar a edição.
+  if(existing){for(const k of Object.keys(existing)){if(!(k in obj)&&k!=='perdcomp')obj[k]=existing[k];}}
   // atualiza allClients em memória imediatamente
   const idx=allClients.findIndex(x=>x.id===id);
   if(idx>=0)allClients[idx]=obj;else allClients.push(obj);
@@ -4374,9 +4517,8 @@ function populateYearSelects(){
 function countDeclsByCls(){
   const counts={};
   for(const c of allClients){
-    for(const v of Object.values(c.exercicios||{})){
-      const cls=classifyStatus(v).cls;
-      counts[cls]=(counts[cls]||0)+1;
+    for(const [yr,v] of Object.entries(c.exercicios||{})){
+      for(const k of declKeys(c,yr,v))counts[k]=(counts[k]||0)+1;
     }
   }
   return counts;
@@ -4385,7 +4527,7 @@ function countMalhaSemDDADecls(){
   let n=0;
   for(const c of allClients){
     for(const [yr,st] of Object.entries(c.exercicios||{})){
-      if(classifyStatus(st).cls==='malha'&&!(c.dda&&c.dda[yr]&&c.dda[yr].feito))n++;
+      if(ECAC_DDA_CLS.has(classifyStatus(st).cls)&&!(c.dda&&c.dda[yr]&&c.dda[yr].feito))n++;
     }
   }
   return n;
@@ -4393,14 +4535,16 @@ function countMalhaSemDDADecls(){
 function renderNavCounts(){
   const counts=countDeclsByCls();
   const set=(id,n)=>{const el=document.getElementById(id);if(el){el.textContent=n;el.classList.toggle('zero',n===0);}};
-  for(const s of ['transmitida','processamento','malha','fila','tmanual','impugnacao','impugnar','processada'])
+  for(const s of [...ECAC_STATUS.map(x=>x.cls),'impugnacao','impugnar','reclassificar'])
     set('navcount-'+s,counts[s]||0);
+  {const nr=document.getElementById('nav-reclassificar'),ref=document.getElementById('nav-processada');if(nr)nr.style.display=(counts.reclassificar&&ref&&ref.style.display!=='none')?'flex':'none';}
   set('navcount-malha-sdda',countMalhaSemDDADecls());
   set('navcount-proc',allClients.filter(clientHasProcPendente).length);
   set('navcount-eproc',eprocContaNovidades());
   set('navcount-perr',allClients.filter(clientHasPerAReceber).length);
 }
 // ── PAINEL-RESUMO (cartões clicáveis no topo da lista) ────────────────────────
+function declMulti(arr){declSemDDAOnly=false;currentDeclStatuses=new Set(arr);currentDeclYear=null;showView('decl');renderDecl();}
 function declOnly(s){
   currentDeclStatuses=new Set([s]);
   currentDeclYear=null;
@@ -4420,7 +4564,7 @@ function navClientFilter(key,navId){
 }
 function showMalhaSemDDA(){
   declSemDDAOnly=true;
-  currentDeclStatuses=new Set(['malha']);currentDeclYear=null;
+  currentDeclStatuses=new Set([...ECAC_DDA_CLS]);currentDeclYear=null;
   showView('decl');renderDecl();
   document.querySelectorAll('.nav-item').forEach(el=>el.classList.remove('active'));
   const e=document.getElementById('nav-malha-sdda');if(e)e.classList.add('active');
@@ -4439,9 +4583,10 @@ function renderSummaryCards(){
     </div>`;
   el.innerHTML=
     card(allClients.length,'Clientes','total cadastrado','var(--accent)',"cardFilter('TODOS')")+
-    card(counts.malha||0,'Em Malha','declarações','var(--red)',"declOnly('malha')")+
-    card(countMalhaSemDDADecls(),'Malha s/ DDA','declarações sem DDA feito','var(--orange)',"showMalhaSemDDA()")+
-    card(counts.impugnar||0,'Impugnar','declarações aguardando','#ec4899',"declOnly('impugnar')")+
+    card((counts.pendencias||0)+(counts.intimacao||0)+(counts.analise||0),'Em Malha','pendências · intimação · análise de docs','var(--red)',"declMulti(['pendencias','intimacao','analise'])")+
+    card(countMalhaSemDDADecls(),'Pend./Intim. s/ DDA','declarações sem DDA feito','var(--orange)',"showMalhaSemDDA()")+
+    card(counts.impugnar||0,'⚖️ Impugnar','declarações aguardando','#ec4899',"declOnly('impugnar')")+
+    (counts.reclassificar?card(counts.reclassificar,'A reclassificar','status antigo — rode a Consulta e-CAC','#64748b',"declOnly('reclassificar')"):'')+
     card(atencao,'⚠️ Atenção','clientes marcados','var(--yellow)',"cardFilter('ATENCAO')");
 }
 // ── SIDEBAR STATS ─────────────────────────────────────────────────────────────
@@ -4451,7 +4596,7 @@ function renderSidebarStats(){
   const pf=allClients.filter(c=>c.tipo==='PF').length;
   const pj=allClients.filter(c=>c.tipo==='PJ').length;
   const countByCls=cls=>allClients.filter(c=>c.exercicios&&Object.values(c.exercicios).some(v=>classifyStatus(v).cls===cls)).length;
-  const malha=countByCls('malha');
+  const malha=allClients.filter(c=>Object.values(c.exercicios||{}).some(v=>ECAC_MALHA_CLS.has(classifyStatus(v).cls))).length;
   const per=allClients.filter(c=>c.temPer).length;
   const dg=allClients.filter(c=>c.doencaGrave).length;
   const perCount=allClients.filter(clientHasPer).length;
@@ -4663,9 +4808,9 @@ function renderProcessos(){
   renderProcessosLista();
 }
 function _eprocFiltrados(){
-  const q=(document.getElementById('eproc-busca')?.value||'').trim().toLowerCase(), qd=_digits(q);
+  const q=deacc((document.getElementById('eproc-busca')?.value||'').trim()), qd=_digits(q);
   let l=_eprocBase(eprocFiltro);
-  if(q)l=l.filter(c=>(c.nome||'').toLowerCase().includes(q)||(qd&&(_digits(c.cpfCnpj).includes(qd)||_eprocAtivos(c).some(p=>String(p.numero||'').includes(qd))||(c.eproc?.retrato?.inativos||[]).some(p=>String(p.numero||'').includes(qd)))));
+  if(q)l=l.filter(c=>deacc(c.nome).includes(q)||(c.eproc?.retrato?.ativos||[]).some(p=>deacc([p.tipo,p.subtipo,p.localizacao,p.ultimoDocumento].join(' ')).includes(q))||(c.eproc?.pendentes||[]).some(n=>deacc(n.texto).includes(q))||(c.mir?.alertas||[]).some(a=>deacc(_mirAvisoTxt(a)).includes(q))||(qd&&(_digits(c.cpfCnpj).includes(qd)||_eprocAtivos(c).some(p=>String(p.numero||'').includes(qd))||(c.eproc?.retrato?.inativos||[]).some(p=>String(p.numero||'').includes(qd)))));
   return l.slice().sort((a,b)=>{
     const pa=_eprocPend(a),pb=_eprocPend(b);
     if((pa>0)!==(pb>0))return pb>0?1:-1;
@@ -4784,7 +4929,9 @@ function eprocCSV(){
 // c.mir = { lidoEm, alertas:[{codigo,titulo,descricao,links:[{exercicio,titulo}]}],
 //           anos:{ano:{situacao,resultado,valor,tipo}} }  (vem da Consulta e-CAC)
 function _mirValor(v){return (typeof v==='number'&&v)?v.toLocaleString('pt-BR',{style:'currency',currency:'BRL'}):'';}
-function _mirAvisoTxt(a){return (a.titulo||'')+(a.descricao?' — '+a.descricao:'')+((a.links||[]).length?' ('+a.links.map(l=>[l.exercicio,l.titulo].filter(Boolean).join(' · ')).join('; ')+')':'');}
+// texto de um link do aviso: "2025 · Documento nº …" — sem repetir quando o título é o próprio ano
+function _mirLinkTxt(l){const ex=l.exercicio!=null?String(l.exercicio):'', t=String(l.titulo||'').trim();return (t&&t!==ex)?[ex,t].filter(Boolean).join(' · '):ex||t;}
+function _mirAvisoTxt(a){const ls=[...new Set((a.links||[]).map(_mirLinkTxt).filter(Boolean))];return (a.titulo||'')+(a.descricao?' — '+a.descricao:'')+(ls.length?' ('+ls.join('; ')+')':'');}
 function mirExInfo(c,yr){
   const d=c.mir?.anos?.[yr]; if(!d)return '';
   const partes=[d.situacao,[d.resultado,_mirValor(d.valor)].filter(Boolean).join(' '),d.tipo&&d.tipo!=='Original'?d.tipo:''].filter(Boolean);
@@ -4792,7 +4939,7 @@ function mirExInfo(c,yr){
 }
 function _mirAvisosHtml(c,pad){
   const al=c.mir?.alertas||[]; if(!al.length)return '';
-  return `<div style="padding:${pad||'10px 16px'};background:rgba(220,38,38,.05);border-bottom:1px solid var(--border);display:flex;flex-direction:column;gap:4px">${al.map(a=>`<div style="font-size:12.5px;color:var(--text)">📢 <b>${esc(a.titulo||'Aviso')}</b>${a.descricao?` — ${esc(a.descricao)}`:''}${(a.links||[]).length?`<div style="font-size:11.5px;color:var(--text3);margin-left:20px">${a.links.map(l=>esc([l.exercicio,l.titulo].filter(Boolean).join(' · '))).join('<br>')}</div>`:''}</div>`).join('')}<div style="font-size:10.5px;color:var(--text3)">Avisos do Meu Imposto de Renda · lido em ${esc(c.mir.lidoEm||'—')}</div></div>`;
+  return `<div style="padding:${pad||'10px 16px'};background:rgba(220,38,38,.05);border-bottom:1px solid var(--border);display:flex;flex-direction:column;gap:4px">${al.map(a=>`<div style="font-size:12.5px;color:var(--text)">📢 <b>${esc(a.titulo||'Aviso')}</b>${a.descricao?` — ${esc(a.descricao)}`:''}${(a.links||[]).length?`<div style="font-size:11.5px;color:var(--text3);margin-left:20px">${[...new Set(a.links.map(_mirLinkTxt).filter(Boolean))].map(esc).join('<br>')}</div>`:''}</div>`).join('')}<div style="font-size:10.5px;color:var(--text3)">Avisos do Meu Imposto de Renda · lido em ${esc(c.mir.lidoEm||'—')}</div></div>`;
 }
 function mirDetalheHtml(c){
   const al=c.mir?.alertas||[]; if(!al.length)return '';
@@ -4838,18 +4985,21 @@ function openQE(clientId, year, evt){
   document.getElementById('qe-title').textContent=`${c.nome} · ${year}`;
   const dot=document.getElementById('qe-dot');
   dot.className=`status-dot dot-${cat.cls}`;
-  const cats=['EM PROCESSAMENTO','TRANSMITIDA','EM MALHA','EM FILA DE RESTITUIÇÃO','PROCESSADA','TRABALHO MANUAL RFB','IMPUGNAÇÃO','IMPUGNAR','AGUARDANDO','NÃO DECLARADA','OUTRO','PERDCOMP'];
-  const qeCatMatch=cats.find(c2=>st.toUpperCase().startsWith(c2))||'EM PROCESSAMENTO';
+  const _qsp=splitStatus(st);
+  const qeCatMatch=(_qsp.cat&&_qsp.cls!=='reclassificar')?_qsp.cat.v:'';
   // garante que a opção existe no select (compatibilidade com valores legados)
   const qeSel=document.getElementById('qe-cat');
   // remove opções legadas do registro anterior antes de avaliar as atuais
   qeSel.querySelectorAll('option[data-legacy]').forEach(o=>o.remove());
-  if(!Array.from(qeSel.options).find(o=>o.value===qeCatMatch)){
-    const opt=document.createElement('option');opt.value=qeCatMatch;opt.textContent=qeCatMatch;opt.dataset.legacy='1';qeSel.appendChild(opt);
+  qeSel.dataset.legadoMain='';
+  if(!qeCatMatch&&st){
+    const opt=document.createElement('option');opt.value='';opt.dataset.legacy='1';
+    opt.textContent='⚠️ A reclassificar'+(_qsp.main?' ('+_qsp.main+')':'');
+    qeSel.insertBefore(opt,qeSel.firstChild);qeSel.dataset.legadoMain=_qsp.main||'';
   }
-  qeSel.value=qeCatMatch;
+  qeSel.value=qeCatMatch||(st?'':'RECEPCIONADA');
   // mostra só o detalhe (sem repetir a categoria)
-  const qeDetPart=st.toUpperCase().startsWith(qeCatMatch.toUpperCase())?st.slice(qeCatMatch.length).replace(/^\s*[\-—]\s*/,'').trim():st;
+  const qeDetPart=_qsp.main?_qsp.det:st;
   document.getElementById('qe-detalhe').value=qeDetPart;
   // Posiciona próximo ao clique
   const pop=document.getElementById('qe-pop');
@@ -4870,11 +5020,12 @@ async function saveQE(){
   if(!canEditExercicios()){showToast('Sem permissão para editar exercícios','error');closeQE();return;}
   if(!qeClientId||!qeYear)return;
   const c=allClients.find(x=>x.id===qeClientId);if(!c)return;
-  const cat=document.getElementById('qe-cat').value;
+  const _qs=document.getElementById('qe-cat');
+  const cat=_qs.value||_qs.dataset.legadoMain||'';
   const det=document.getElementById('qe-detalhe').value.trim();
   if(!c.exercicios)c.exercicios={};
   const anterior=c.exercicios[qeYear]||'';
-  const novo=det?`${cat} — ${det}`:cat;
+  const novo=cat?joinStatus(cat,det):det;
   c.exercicios[qeYear]=novo;
   if(!c.historico)c.historico=[];
   c.historico.unshift({ts:new Date().toISOString(),exercicio:qeYear,de:anterior,para:novo,usuario:getCurrentUserName()});
@@ -5315,9 +5466,9 @@ function gerarRelatorio(){
       const exs=Object.entries(c.exercicios||{});
       if(exercicio!=='TODOS'){
         const st=c.exercicios?.[exercicio];
-        if(!st||classifyStatus(st).cls!==status)return false;
+        if(!st||!declKeys(c,exercicio,st).includes(status))return false;
       } else {
-        if(!exs.some(([,v])=>classifyStatus(v).cls===status))return false;
+        if(!exs.some(([y,v])=>declKeys(c,y,v).includes(status)))return false;
       }
     } else if(exercicio!=='TODOS'){
       if(!c.exercicios?.[exercicio])return false;
