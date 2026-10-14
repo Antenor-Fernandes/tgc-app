@@ -4769,7 +4769,7 @@ const EPROC_FILTROS={
   novidades:{icon:'🔔',label:'Com novidade',cor:'#d97706',desc:'Clientes com novidade ainda não vista'},
   recentes:{icon:'🗓️',label:'Juntada ≤ 30 dias',cor:'#2563eb',desc:'Processos com documento juntado nos últimos 30 dias'},
   ativos:{icon:'⚖️',label:'Com processo ativo',cor:'#7c3aed',desc:'Todos os clientes com processo ativo no e-Processo'},
-  avisos:{icon:'📢',label:'Aviso no MIR',cor:'#dc2626',desc:'Clientes com aviso no Meu Imposto de Renda (ex.: e-edital publicado)'},
+  avisos:{icon:'📢',label:'Aviso não verificado',cor:'#dc2626',desc:'Clientes com aviso do Meu Imposto de Renda (ex.: e-edital) ainda não marcado ✔ Ciente. Os já verificados ficam em "Todos os lidos".'},
   falhas:{icon:'⚠️',label:'Falha na leitura',cor:'#b45309',desc:'A última tentativa de leitura falhou ou parou em mensagem importante'},
   lidos:{icon:'📂',label:'Todos os lidos',cor:'#64748b',desc:'Todos os clientes que já tiveram os processos lidos'}
 };
@@ -4784,7 +4784,7 @@ function eprocSetFiltro(f){eprocFiltro=f;renderProcessos();}
 function _eprocBase(f){
   const lidos=allClients.filter(c=>(c.eproc&&(c.eproc.retrato||c.eproc.falha||(c.eproc.pendentes||[]).length))||(c.mir?.alertas||[]).length);
   if(f==='novidades')return lidos.filter(c=>_eprocPend(c)>0);
-  if(f==='avisos')return lidos.filter(c=>(c.mir?.alertas||[]).length>0);
+  if(f==='avisos')return lidos.filter(c=>mirPendentesCiencia(c)>0);
   if(f==='recentes')return lidos.filter(c=>_eprocAtivos(c).some(p=>_eprocRecente(p,30)));
   if(f==='ativos')return lidos.filter(c=>_eprocAtivos(c).length>0);
   if(f==='falhas')return lidos.filter(c=>!!c.eproc.falha);
@@ -4819,7 +4819,7 @@ function _eprocFiltrados(){
     return (a.nome||'').localeCompare(b.nome||'','pt-BR');
   });
 }
-const _EPROC_TIPO_NOV={AVISO_MIR:'📢',DOCUMENTO:'📄',LOCALIZACAO:'📍',SITUACAO:'🔄',PROCESSO_NOVO:'🆕',SAIU_DOS_ATIVOS:'📦',INATIVO_NOVO:'🗄️'};
+const _EPROC_TIPO_NOV={DOC_MIR:'📑',AVISO_MIR:'📢',DOCUMENTO:'📄',LOCALIZACAO:'📍',SITUACAO:'🔄',PROCESSO_NOVO:'🆕',SAIU_DOS_ATIVOS:'📦',INATIVO_NOVO:'🗄️'};
 function renderProcessosLista(){
   const el=document.getElementById('eproc-lista'); if(!el)return;
   const I=EPROC_FILTROS[eprocFiltro], lista=_eprocFiltrados();
@@ -4933,13 +4933,96 @@ function _mirValor(v){return (typeof v==='number'&&v)?v.toLocaleString('pt-BR',{
 function _mirLinkTxt(l){const ex=l.exercicio!=null?String(l.exercicio):'', t=String(l.titulo||'').trim();return (t&&t!==ex)?[ex,t].filter(Boolean).join(' · '):ex||t;}
 function _mirAvisoTxt(a){const ls=[...new Set((a.links||[]).map(_mirLinkTxt).filter(Boolean))];return (a.titulo||'')+(a.descricao?' — '+a.descricao:'')+(ls.length?' ('+ls.join('; ')+')':'');}
 function mirExInfo(c,yr){
-  const d=c.mir?.anos?.[yr]; if(!d)return '';
+  const d=c.mir?.anos?.[yr]; if(!d)return mirDocsExHtml(c,yr);
   const partes=[d.situacao,[d.resultado,_mirValor(d.valor)].filter(Boolean).join(' '),d.tipo&&d.tipo!=='Original'?d.tipo:''].filter(Boolean);
-  return `<div style="margin-top:4px;font-size:11.5px;color:var(--text3)" title="Lido no Meu Imposto de Renda em ${esc(c.mir.lidoEm||'')}">🛰️ e-CAC: ${esc(partes.join(' · '))}</div>`;
+  return `<div style="margin-top:4px;font-size:11.5px;color:var(--text3)" title="Lido no Meu Imposto de Renda em ${esc(c.mir.lidoEm||'')}">🛰️ e-CAC: ${esc(partes.join(' · '))}</div>`+mirDocsExHtml(c,yr);
 }
+function mirDocsExHtml(c,yr){
+  const ds=_mirDocsAno(c,yr); if(!ds.length)return '';
+  return `<div style="margin-top:3px;font-size:11.5px;color:var(--text2)">📑 ${ds.map(d=>`${esc(d.doc)} <span style="font-family:'DM Mono',monospace;color:var(--text3)">${esc(d.data)}</span>${/^e-?edital/i.test(d.doc)?` <span style="color:#b45309">(intim. feita ${esc(_mirAddDias(d.data,15))})</span>`:''}`).join(' · ')}</div>`;
+}
+// ── Ciência dos avisos do MIR (ex.: e-edital) ──────────────────────────────
+// O MIR não informa a data do edital — só o nº do documento, que é único. O
+// escritório marca cada edital como "✔ Ciente" (c.mirCiente[chave]); com a data
+// de publicação informada, mostra quando a intimação se considera feita:
+// 15 dias após a publicação (Dec. 70.235/72, art. 23, § 2º, IV).
+function _mirItens(a){
+  const ls=(a.links||[]).filter(l=>l&&(l.titulo||l.exercicio!=null));
+  if(!ls.length)return[{chave:[a.codigo,a.titulo,a.descricao].join('|'),txt:''}];
+  const vis=new Set(), out=[];
+  for(const l of ls){const t=_mirLinkTxt(l);const k=[a.codigo,a.titulo,t].join('|');if(vis.has(k))continue;vis.add(k);
+    const num=((String(l.titulo||'').match(/(\d{4}\/\d{6,}|\d{6,})/)||[])[1])||'';
+    out.push({chave:k,txt:t,ex:l.exercicio!=null?String(l.exercicio):'',num,edital:a.codigo===11||/edital/i.test(a.titulo||'')});}
+  return out;
+}
+function _mirAddDias(dmy,n){const m=String(dmy||'').match(/^(\d{2})\/(\d{2})\/(\d{4})$/);if(!m)return'';const d=new Date(+m[3],+m[2]-1,+m[1]+n);return d.toLocaleDateString('pt-BR');}
+// Documentos fiscais do MIR (aba "Documentos" de cada exercício): c.mir.docs[ano]=[{data,doc,num,sit}]
+function _mirDataNum(d){const m=String(d||'').match(/(\d{2})\/(\d{2})\/(\d{4})/);return m?+(m[3]+m[2]+m[1]):0;}
+function _mirDocsAno(c,ano){return (c.mir?.docs?.[ano]||[]).slice().sort((x,y)=>_mirDataNum(x.data)-_mirDataNum(y.data));}
+// Datas do edital ligado a um aviso: termo/intimação (pelo nº), e-Edital e aviso de edital seguintes
+function _mirEditalInfo(c,it){
+  const ds=_mirDocsAno(c,it.ex); if(!ds.length)return null;
+  const origem=it.num?ds.find(d=>d.num===it.num):null;
+  const desde=origem?_mirDataNum(origem.data):0;
+  const ed=ds.filter(d=>/^e-?edital/i.test(d.doc)&&_mirDataNum(d.data)>=desde);
+  const edital=ed[0]||ds.filter(d=>/^e-?edital/i.test(d.doc)).pop()||null;
+  const aviso=edital?ds.find(d=>/aviso de edital/i.test(d.doc)&&(d.num===edital.num||_mirDataNum(d.data)>=_mirDataNum(edital.data))):null;
+  return {origem,edital,aviso};
+}
+function _mirEditalHtml(info){
+  if(!info)return'';
+  const p=[];
+  if(info.origem)p.push(`${esc(info.origem.doc)} em ${esc(info.origem.data)}`);
+  if(info.edital)p.push(`e-Edital publicado em <b>${esc(info.edital.data)}</b> → <b style="color:#b45309">intimação considerada feita em ${esc(_mirAddDias(info.edital.data,15))}</b>`);
+  if(info.aviso)p.push(`aviso de edital em ${esc(info.aviso.data)}`);
+  return p.length?`<div style="font-size:11.5px;color:var(--text2);margin:2px 0 0 20px">📑 ${p.join(' · ')}</div>`:'';
+}
+function mirPendentesCiencia(c){let n=0;for(const a of (c.mir?.alertas||[]))for(const it of _mirItens(a))if(!c.mirCiente?.[it.chave])n++;return n;}
 function _mirAvisosHtml(c,pad){
   const al=c.mir?.alertas||[]; if(!al.length)return '';
-  return `<div style="padding:${pad||'10px 16px'};background:rgba(220,38,38,.05);border-bottom:1px solid var(--border);display:flex;flex-direction:column;gap:4px">${al.map(a=>`<div style="font-size:12.5px;color:var(--text)">📢 <b>${esc(a.titulo||'Aviso')}</b>${a.descricao?` — ${esc(a.descricao)}`:''}${(a.links||[]).length?`<div style="font-size:11.5px;color:var(--text3);margin-left:20px">${[...new Set(a.links.map(_mirLinkTxt).filter(Boolean))].map(esc).join('<br>')}</div>`:''}</div>`).join('')}<div style="font-size:10.5px;color:var(--text3)">Avisos do Meu Imposto de Renda · lido em ${esc(c.mir.lidoEm||'—')}</div></div>`;
+  const pode=(typeof canEditExercicios!=='function')||canEditExercicios();
+  const linhas=al.map((a,ai)=>{
+    const itens=_mirItens(a);
+    return `<div style="font-size:12.5px;color:var(--text)">📢 <b>${esc(a.titulo||'Aviso')}</b>${a.descricao?` — ${esc(a.descricao)}`:''}${itens.map((it,ii)=>{
+      const ci=c.mirCiente?.[it.chave];
+      const inf=it.edital?_mirEditalInfo(c,it):null;
+      const st=ci?`<span style="color:var(--green);font-weight:600">✔ ciente em ${esc(ci.em||'')}${ci.por?' por '+esc(ci.por):''}</span>${ci.pub&&!inf?.edital?` · publicado em ${esc(ci.pub)} → <b>intimação considerada feita em ${esc(_mirAddDias(ci.pub,15))}</b>`:''}${pode?` <a href="#" onclick="event.preventDefault();event.stopPropagation();mirDesfazerCiente('${c.id}',${ai},${ii})" style="font-size:11px;color:var(--text3)">desfazer</a>`:''}`
+                 :`<span style="color:#dc2626;font-weight:700">🆕 não verificado</span>${pode?` <button class="btn btn-ghost btn-sm" style="padding:1px 8px;font-size:11px;margin-left:4px" onclick="event.stopPropagation();mirMarcarCiente('${c.id}',${ai},${ii})">✔ Ciente</button>`:''}`;
+      return `<div style="font-size:11.5px;color:var(--text3);margin:3px 0 0 20px">${it.txt?esc(it.txt)+' · ':''}${st}</div>${_mirEditalHtml(inf)}`;}).join('')}</div>`;
+  }).join('');
+  return `<div style="padding:${pad||'10px 16px'};background:rgba(220,38,38,.05);border-bottom:1px solid var(--border);display:flex;flex-direction:column;gap:6px">${linhas}<div style="font-size:10.5px;color:var(--text3)">Avisos do Meu Imposto de Renda · lido em ${esc(c.mir.lidoEm||'—')} · datas da aba "Documentos" do MIR · intimação por edital: 15 dias após a publicação (Dec. 70.235/72, art. 23, § 2º, IV)</div></div>`;
+}
+async function _mirSalvarCiencia(c){
+  await _eprocGravar([c]);
+  if(typeof currentView!=='undefined'){if(currentView==='processos')renderProcessos();else if(currentView==='detalhe'&&typeof openDetail==='function')openDetail(c.id);}
+}
+async function mirMarcarCiente(id,ai,ii){
+  if(typeof canEditExercicios==='function'&&!canEditExercicios()){showToast('Sem permissão para editar.','error');return;}
+  const c=allClients.find(x=>x.id===id); const a=c?.mir?.alertas?.[ai]; if(!a)return;
+  const it=_mirItens(a)[ii]; if(!it)return;
+  let pub='';
+  const _inf=it.edital?_mirEditalInfo(c,it):null;
+  if(_inf?.edital)pub=_inf.edital.data;
+  else if(it.edital){
+    const r=prompt(`${it.txt||a.titulo}\n\nData de PUBLICAÇÃO do edital (dd/mm/aaaa) — opcional.\nCom ela o programa mostra quando a intimação se considera feita (15 dias depois).`,'');
+    if(r===null)return;
+    pub=(r||'').trim();
+    if(pub&&!/^\d{2}\/\d{2}\/\d{4}$/.test(pub)){showToast('Data inválida — use dd/mm/aaaa','error');return;}
+  }
+  if(!c.mirCiente)c.mirCiente={};
+  c.mirCiente[it.chave]={em:new Date().toLocaleString('pt-BR').slice(0,17),por:(typeof getCurrentUserName==='function'?getCurrentUserName():'')||'',pub};
+  // tira a novidade 🔔 correspondente
+  if(c.eproc?.pendentes)c.eproc.pendentes=c.eproc.pendentes.filter(n=>!(n.tipo==='AVISO_MIR'&&(!it.txt||String(n.texto||'').includes(it.txt))&&String(n.texto||'').includes(a.titulo||'')));
+  await _mirSalvarCiencia(c);
+  showToast('✔ Registrado como ciente','success');
+}
+async function mirDesfazerCiente(id,ai,ii){
+  if(typeof canEditExercicios==='function'&&!canEditExercicios())return;
+  const c=allClients.find(x=>x.id===id); const a=c?.mir?.alertas?.[ai]; if(!a)return;
+  const it=_mirItens(a)[ii]; if(!it||!c.mirCiente)return;
+  if(!confirm('Desfazer o registro de ciência deste aviso?'))return;
+  delete c.mirCiente[it.chave];
+  await _mirSalvarCiencia(c);
 }
 function mirDetalheHtml(c){
   const al=c.mir?.alertas||[]; if(!al.length)return '';
@@ -4958,7 +5041,18 @@ async function mirAplicar(resultados){
     if(c.mir&&c.mir.lidoEm===r.mir.lidoEm)continue;
     const antes=new Set((c.mir?.alertas||[]).map(chaveA));
     const novos=(r.mir.alertas||[]).filter(a=>!antes.has(chaveA(a)));
-    c.mir={lidoEm:r.mir.lidoEm,alertas:r.mir.alertas||[],anos:r.mir.anos||{}};
+    // documentos fiscais novos (só a partir da 2ª leitura com documentos — a 1ª é a referência)
+    const tinhaDocs=!!(c.mir&&c.mir.docs);
+    const kd=(a,d)=>a+'|'+d.doc+'|'+d.num+'|'+d.data;
+    const docsAntes=new Set(Object.entries(c.mir?.docs||{}).flatMap(([a,l])=>l.map(d=>kd(a,d))));
+    const docsNovos=tinhaDocs?Object.entries(r.mir.docs||{}).flatMap(([a,l])=>l.filter(d=>!docsAntes.has(kd(a,d))).map(d=>({a,d}))):[];
+    c.mir={lidoEm:r.mir.lidoEm,alertas:r.mir.alertas||[],anos:r.mir.anos||{},docs:r.mir.docs||{}};
+    if(docsNovos.length){
+      if(!c.eproc)c.eproc={pendentes:[]};
+      if(!c.eproc.pendentes)c.eproc.pendentes=[];
+      docsNovos.forEach(({a,d})=>c.eproc.pendentes.push({tipo:'DOC_MIR',processo:'MIR '+a,texto:`documento no Meu Imposto de Renda (exercício ${a}): ${d.doc} de ${d.data}${/^e-?edital/i.test(d.doc)?' — intimação considerada feita em '+_mirAddDias(d.data,15):''}`,detectadoEm:r.mir.lidoEm}));
+      nAv+=docsNovos.length;
+    }
     if(novos.length){
       if(!c.eproc)c.eproc={pendentes:[]};
       if(!c.eproc.pendentes)c.eproc.pendentes=[];
