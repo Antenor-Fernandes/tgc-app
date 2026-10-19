@@ -710,8 +710,17 @@ body.exercicios-level .full-edit-only{display:none!important}
         <div id="ecac-painel" style="display:none;flex-direction:column;gap:18px">
           <div>
             <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.6px">1 · Abrir o Chrome e logar</div>
-            <p style="font-size:12.5px;color:var(--text2);margin:4px 0 8px">Abre o Chrome no e-CAC. Faça o login com o certificado e deixe a janela aberta.</p>
-            <button class="btn btn-ghost" onclick="ecacAbrirChrome()">🌐 Abrir Chrome e logar</button>
+            <p style="font-size:12.5px;color:var(--text2);margin:4px 0 8px">Abre o Chrome no e-CAC. Faça o login com o certificado e deixe a janela aberta. Com mais de uma sessão, cada sessão tem o seu Chrome — logue em todos.</p>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
+              <div class="form-group" style="width:190px"><label>Sessões simultâneas</label>
+                <select id="ecac-sessoes" onchange="ecacSetSessoes(this.value)">
+                  <option value="1">1 sessão (normal)</option>
+                  <option value="2">2 sessões</option>
+                  <option value="3">3 sessões</option>
+                </select></div>
+              <div id="ecac-btns-chrome" style="display:flex;gap:8px;flex-wrap:wrap"></div>
+            </div>
+            <div id="ecac-sess-info" style="font-size:12px;color:var(--text3);margin-top:6px"></div>
           </div>
           <div>
             <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.6px">2 · O que consultar e quais clientes</div>
@@ -4697,7 +4706,7 @@ function buildEcacCompare(data){
         const atual=c.exercicios?.[ano]||'';
         const alvo=ECAC_STATUS.find(s=>s.v===info.ecacPadrao);
         if(alvo&&classifyStatus(atual).cls===alvo.cls){atualizados.push({ano,ecac:info.ecac});continue;}
-        divs.push({ano,ecac:info.ecac,programa:atual||info.programa,det:r.mir?.anos?.[ano]||null,padrao:alvo?alvo.v:'',legado:!!info.legado}); totalDiv++;
+        divs.push({ano,ecac:info.ecac,programa:atual||info.programa,det:r.mir?.anos?.[ano]||null,padrao:alvo?alvo.v:'',legado:!!info.legado,tela:r.via==='tela'}); totalDiv++;
       }
       else if(info.situacao==='ausente_ecac'||info.situacao==='incerto'){
         outros.push({ano,ecac:info.ecac,programa:info.programa,situacao:info.situacao});
@@ -4719,14 +4728,14 @@ function renderEcacModal(){
   h+=`<div style="display:flex;gap:8px;flex-wrap:wrap">${stat('No arquivo',x.total)}${stat('Casados por CPF',x.matched.length,'var(--green)')}${stat('Não encontrados',x.naoEncontrados.length,x.naoEncontrados.length?'var(--yellow)':'var(--text)')}${stat('Divergências',x.totalDiv,x.totalDiv?'var(--red)':'var(--green)')}</div>`;
   const _det=d=>d.det?[ [d.det.resultado,_mirValor(d.det.valor)].filter(Boolean).join(' '), d.det.tipo&&d.det.tipo!=='Original'?d.det.tipo:'' ].filter(Boolean).join(' · '):'';
   const _podeAtu=(typeof canEditExercicios==='function')?canEditExercicios():true;
-  const tbl=(arr,cid)=>`<table style="width:100%;border-collapse:collapse;font-size:12.5px;margin-top:6px"><tr style="color:var(--text3);font-size:10.5px;text-transform:uppercase;letter-spacing:.5px">${_podeAtu?'<td style="padding:4px 4px;width:26px" title="Atualizar pelo e-CAC">🔄</td>':''}<td style="padding:4px 8px">Ano</td><td style="padding:4px 8px">e-CAC</td><td style="padding:4px 8px">Programa</td></tr>${arr.map(d=>`<tr>${_podeAtu?`<td style="padding:4px 4px">${d.padrao?`<input type="checkbox" class="ecac-atu" data-cid="${esc(cid)}" data-ano="${esc(d.ano)}" data-padrao="${esc(d.padrao)}" checked style="width:15px;height:15px;cursor:pointer">`:'<span title="Status do e-CAC fora das categorias — ajuste à mão" style="color:var(--text3)">—</span>'}</td>`:''}<td style="padding:4px 8px;font-weight:600">${esc(d.ano)}</td><td style="padding:4px 8px;color:var(--red)">${esc(d.ecac||'—')}${_det(d)?`<div style="font-size:11px;color:var(--text3)">${esc(_det(d))}</div>`:''}</td><td style="padding:4px 8px;color:var(--text2)">${esc(d.programa||'—')}</td></tr>`).join('')}</table>`;
+  const tbl=(arr,cid)=>`<table style="width:100%;border-collapse:collapse;font-size:12.5px;margin-top:6px"><tr style="color:var(--text3);font-size:10.5px;text-transform:uppercase;letter-spacing:.5px">${_podeAtu?'<td style="padding:4px 4px;width:26px" title="Atualizar pelo e-CAC">🔄</td>':''}<td style="padding:4px 8px">Ano</td><td style="padding:4px 8px">e-CAC</td><td style="padding:4px 8px">Programa</td></tr>${arr.map(d=>`<tr>${_podeAtu?`<td style="padding:4px 4px">${d.padrao?`<input type="checkbox" class="ecac-atu" data-cid="${esc(cid)}" data-ano="${esc(d.ano)}" data-padrao="${esc(d.padrao)}" ${d.tela?'':'checked'} title="${d.tela?'Lido pela tela (reserva) — confira no e-CAC antes de marcar':''}" style="width:15px;height:15px;cursor:pointer">`:'<span title="Status do e-CAC fora das categorias — ajuste à mão" style="color:var(--text3)">—</span>'}</td>`:''}<td style="padding:4px 8px;font-weight:600">${esc(d.ano)}</td><td style="padding:4px 8px;color:var(--red)">${esc(d.ecac||'—')}${_det(d)?`<div style="font-size:11px;color:var(--text3)">${esc(_det(d))}</div>`:''}</td><td style="padding:4px 8px;color:var(--text2)">${esc(d.programa||'—')}</td></tr>`).join('')}</table>`;
   const comAviso=x.matched.filter(m=>m.avisos&&m.avisos.length);
   const nAtu=x.matched.reduce((n,m)=>n+(m.atualizados||[]).length,0);
   if(nAtu)h+=`<div style="color:var(--green);margin-top:8px;font-size:12.5px">🔄 ${nAtu} exercício(s) já atualizados com o status do e-CAC (os de status antigo — Em Malha, Impugnar/Impugnação — são atualizados sozinhos ao fim da consulta, mantendo os detalhes).</div>`;
   if(comDiv.length){
     h+=`<div style="font-weight:700;color:var(--red);margin-top:8px">⚠️ Divergências (e-CAC × programa)</div>`;
     for(const m of comDiv){
-      h+=`<div style="border:1px solid rgba(220,38,38,.3);border-radius:9px;padding:10px;margin-top:6px"><div style="font-weight:700">${esc(m.c.nome)} <span style="color:var(--text3);font-weight:400;font-size:12px">${esc(m.c.cpfCnpj)}</span></div>${tbl(m.divs,m.c.id)}</div>`;
+      h+=`<div style="border:1px solid rgba(220,38,38,.3);border-radius:9px;padding:10px;margin-top:6px"><div style="font-weight:700">${esc(m.c.nome)} <span style="color:var(--text3);font-weight:400;font-size:12px">${esc(m.c.cpfCnpj)}</span></div>${m.r.via==='tela'?`<div style="font-size:12px;color:#b45309;margin-top:3px">🖥️ Lido pela tela (a leitura pelos dados falhou neste cliente) — o status pode estar errado; confira no e-CAC antes de atualizar.</div>`:''}${tbl(m.divs,m.c.id)}</div>`;
     }
   }else{
     h+=`<div style="color:var(--green);margin-top:8px">✅ Nenhuma divergência entre os clientes casados.</div>`;
@@ -4769,6 +4778,7 @@ async function ecacAtualizarLegados(resultados){
   const mud=new Set(); let n=0;
   for(const r of (resultados||[])){
     const c=byD.get(r.cpf_digits||_digits(r.cpf)); if(!c)continue;
+    if(r.via==='tela')continue;   // leitura de tela (reserva): nada é atualizado sozinho
     for(const [ano,info] of Object.entries(r.exercicios||{})){
       if(!info.divergente||!info.legado)continue;
       const alvo=ECAC_STATUS.find(s=>s.v===info.ecacPadrao); if(!alvo)continue;
@@ -4835,13 +4845,34 @@ function _ecacAlerta(){
   try{ document.title='📨 MENSAGEM IMPORTANTE — e-CAC'; }catch(e){}
 }
 function _ecacFetch(path,opt){return fetch(ECAC_SRV+path,opt);}
+// ── Sessões simultâneas: sessão N = servidor na porta 8764+N, com o seu próprio Chrome ──
+function _ecacSrv(n){return 'http://localhost:'+(8764+n);}
+function _ecacNSess(){const v=parseInt(document.getElementById('ecac-sessoes')?.value||'1');return isNaN(v)?1:Math.max(1,Math.min(3,v));}
+let _ecacSessoes=(()=>{try{const a=JSON.parse(localStorage.getItem('cadastroIR_ecacSessoes')||'[1]');return Array.isArray(a)&&a.length?a:[1];}catch(e){return[1];}})();
+function _ecacGuardarSessoes(arr){_ecacSessoes=arr;try{localStorage.setItem('cadastroIR_ecacSessoes',JSON.stringify(arr));}catch(e){}}
+function _ecacTodos(path,opt){return Promise.all(_ecacSessoes.map(n=>fetch(_ecacSrv(n)+path,opt).catch(()=>null)));}
+function ecacSetSessoes(v){
+  try{localStorage.setItem('cadastroIR_ecacNSess',String(v));}catch(e){}
+  const n=_ecacNSess();
+  const box=document.getElementById('ecac-btns-chrome');
+  if(box)box.innerHTML=Array.from({length:n},(_,i)=>`<button class="btn btn-ghost" onclick="ecacAbrirChrome(${i+1})">🌐 Abrir Chrome${n>1?' '+(i+1):''} e logar</button>`).join('');
+  ecacPing();
+}
+async function _ecacPingSess(n){try{const r=await fetch(_ecacSrv(n)+'/ping',{cache:'no-store'});if(!r.ok)return null;return await r.json();}catch(e){return null;}}
 async function ecacPing(){
   const badge=document.getElementById('ecac-srv-badge');
   const off=document.getElementById('ecac-srv-off');
   const painel=document.getElementById('ecac-painel');
+  {const sel=document.getElementById('ecac-sessoes');if(sel&&!sel.dataset.ini){sel.dataset.ini='1';let v='1';try{v=localStorage.getItem('cadastroIR_ecacNSess')||'1';}catch(e){}sel.value=v;ecacSetSessoes(v);return;}}
   try{
-    const r=await fetch(ECAC_SRV+'/ping',{cache:'no-store'}); if(!r.ok)throw 0;
-    badge.textContent='● servidor conectado'; badge.style.color='var(--green)';
+    const n=_ecacNSess();
+    const pings=await Promise.all(Array.from({length:n},(_,i)=>_ecacPingSess(i+1)));
+    if(!pings[0])throw 0;
+    const ok=pings.filter(Boolean).length;
+    badge.textContent=n>1?`● ${ok} de ${n} sessões conectadas`:'● servidor conectado';
+    badge.style.color=ok===n?'var(--green)':'var(--yellow)';
+    const info=document.getElementById('ecac-sess-info');
+    if(info)info.innerHTML=n>1?(ok<n?`⚠️ Sessão(ões) ${pings.map((p,i)=>p?null:i+1).filter(Boolean).join(', ')} sem servidor — feche e abra o programa pelo <code>ABRIR PROGRAMA e-CAC.bat</code> (ele liga as 3 sessões).`:`A lista de clientes será dividida em ${n} partes, uma por sessão (Chrome). Cada Chrome precisa estar logado.`):'';
     off.style.display='none'; painel.style.display='flex';
     ecacPreview(); ecacStatusOnce();
   }catch(e){
@@ -4849,8 +4880,9 @@ async function ecacPing(){
     off.style.display='block'; painel.style.display='none';
   }
 }
-async function ecacAbrirChrome(){
-  try{const r=await _ecacFetch('/abrir-chrome',{method:'POST'});const j=await r.json();if(j.erro)throw new Error(j.erro);showToast('Chrome aberto — faça o login e deixe a janela aberta','success');}
+async function ecacAbrirChrome(n){
+  n=n||1;
+  try{const r=await fetch(_ecacSrv(n)+'/abrir-chrome',{method:'POST'});const j=await r.json();if(j.erro)throw new Error(j.erro);showToast('Chrome aberto — faça o login e deixe a janela aberta','success');}
   catch(e){showToast('❌ '+(e.message||'Servidor offline'),'error');}
 }
 function _ecacSemAcento(s){return String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase();}
@@ -4888,6 +4920,7 @@ function ecacPreview(){
 }
 async function ecacIniciar(){
   if(!_ecacSel.length){showToast('Nenhum cliente selecionado','error');return;}
+  const nSess=Math.min(_ecacNSess(),_ecacSel.length);
   const clientes=_ecacSel.map(c=>({nome:c.nome,cpf:_digits(c.cpfCnpj),cpf_fmt:c.cpfCnpj,exercicios:c.exercicios||{}}));
   const delay=parseFloat(document.getElementById('ecac-delay').value)||0;
   const tentativas=parseInt(document.getElementById('ecac-tent').value)||1;
@@ -4899,8 +4932,23 @@ async function ecacIniciar(){
       const pg=await fetch(ECAC_SRV+'/ping',{cache:'no-store'}).then(r=>r.json()).catch(()=>({}));
       if(!pg.eprocesso)throw new Error('O servidor de consulta está desatualizado — feche a janela do servidor e abra de novo (ABRIR PROGRAMA e-CAC.bat).');
     }
-    const r=await _ecacFetch('/iniciar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({clientes,delay,tentativas,modo,retratos})});
-    const js=await r.json(); if(js.erro)throw new Error(js.erro);
+    // divide a lista (em ordem) entre as sessões — cada uma no seu Chrome
+    const pings=await Promise.all(Array.from({length:nSess},(_,i)=>_ecacPingSess(i+1)));
+    const falt=pings.map((p,i)=>p?null:i+1).filter(Boolean);
+    if(falt.length)throw new Error('Sessão(ões) '+falt.join(', ')+' sem servidor — abra pelo ABRIR PROGRAMA e-CAC.bat');
+    if(nSess>1&&pings.some(p=>!p.sessao))throw new Error('Servidor desatualizado — feche as janelas dos servidores e abra de novo pelo ABRIR PROGRAMA e-CAC.bat');
+    const partes=[]; const tam=Math.ceil(clientes.length/nSess);
+    for(let i=0;i<nSess;i++)partes.push(clientes.slice(i*tam,(i+1)*tam));
+    const usadas=[];
+    for(let i=0;i<nSess;i++){
+      if(!partes[i].length)continue;
+      const ret={}; partes[i].forEach(c=>{if(retratos[c.cpf])ret[c.cpf]=retratos[c.cpf];});
+      const r=await fetch(_ecacSrv(i+1)+'/iniciar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({clientes:partes[i],delay,tentativas,modo,retratos:ret})});
+      const js=await r.json(); if(js.erro)throw new Error((nSess>1?'Sessão '+(i+1)+': ':'')+js.erro);
+      usadas.push(i+1);
+    }
+    _ecacGuardarSessoes(usadas);
+    if(usadas.length>1)showToast(`▶️ ${usadas.length} sessões em paralelo: ${partes.filter(p=>p.length).map((p,i)=>'S'+(i+1)+' = '+p.length).join(' · ')} clientes`,'success');
     try{localStorage.removeItem('cadastroIR_eprocJob');localStorage.removeItem('cadastroIR_mirJob');localStorage.removeItem('cadastroIR_stJob');}catch(e){}
     _ecacDone=null;
     document.getElementById('ecac-prog-wrap').style.display='block';
@@ -4914,9 +4962,33 @@ function _ecacRunBtns(running){
   document.getElementById('ecac-btn-parar').style.display=running?'inline-flex':'none';
 }
 function ecacStartPoll(){clearInterval(_ecacPoll);_ecacPoll=setInterval(ecacStatusOnce,1000);ecacStatusOnce();}
+const _ECAC_VIVOS=['rodando','pausado','aguardando_relogin','aguardando_rede','reconectando','aguardando_login'];
+// Junta o /status de todas as sessões da consulta num só (mesmo formato de antes)
+function _ecacCombinar(outs){
+  const v=outs.map((js,i)=>({n:_ecacSessoes[i],js})).filter(x=>x.js&&x.js.estado&&x.js.estado!=='idle');
+  if(!v.length)return null;
+  if(v.length===1&&_ecacSessoes.length===1)return v[0].js;
+  const est=v.map(x=>x.js.estado);
+  let estado;
+  if(est.some(e=>_ECAC_VIVOS.includes(e))){
+    estado=est.includes('aguardando_relogin')?'aguardando_relogin':(est.filter(e=>_ECAC_VIVOS.includes(e)).every(e=>e==='pausado')?'pausado':'rodando');
+  }else estado=est.includes('erro')?'erro':'concluido';
+  const soma=k=>v.reduce((s,x)=>s+(+x.js[k]||0),0);
+  const cat=k=>v.flatMap(x=>Array.isArray(x.js[k])?x.js[k]:[]);
+  return {
+    estado, idx:soma('idx'), total:soma('total'), totalDiv:soma('totalDiv'), totalNov:soma('totalNov'),
+    atual:v.map(x=>`S${x.n}: ${x.js.estado==='concluido'?'✓ concluída':(x.js.atual||x.js.estado)}`).join('  |  '),
+    log:v.flatMap(x=>[`══════ SESSÃO ${x.n} (${x.js.idx}/${x.js.total}) ══════`,...(x.js.log||[]).slice(-300),'']),
+    resultados:cat('resultados'), processos:cat('processos'),
+    gerado_em:v.map(x=>x.js.gerado_em||'').sort().pop()||'',
+    erro:v.filter(x=>x.js.estado==='erro').map(x=>`Sessão ${x.n}: ${x.js.erro||'erro'}${x.js.proximo?' (parou em '+x.js.proximo+')':''}`).join(' · '),
+    proximo:'', modo:v[0].js.modo
+  };
+}
 async function ecacStatusOnce(){
   let js;
-  try{const r=await fetch(ECAC_SRV+'/status',{cache:'no-store'});js=await r.json();}catch(e){return;}
+  try{js=_ecacCombinar(await Promise.all(_ecacSessoes.map(n=>fetch(_ecacSrv(n)+'/status',{cache:'no-store'}).then(r=>r.json()).catch(()=>null))));}catch(e){return;}
+  if(!js)return;
   if(!js||js.estado==='idle')return;
   const bar=document.getElementById('ecac-prog-bar');
   const txt=document.getElementById('ecac-prog-txt');
@@ -4927,7 +4999,7 @@ async function ecacStatusOnce(){
   document.getElementById('ecac-btn-continuar').style.display=(js.estado==='aguardando_relogin')?'inline-flex':'none';
   if(js.estado==='aguardando_relogin'&&_ecacUltEstado!=='aguardando_relogin'){
     _ecacAlerta();
-    showToast('📨 MENSAGEM IMPORTANTE no e-CAC — verifique manualmente, FECHE e reabra o Chrome, logue e clique "Continuar"','error');
+    showToast('📨 MENSAGEM IMPORTANTE no e-CAC'+(_ecacSessoes.length>1?' ('+(String(js.atual||'').split('|').find(t=>t.includes('📨'))||'').trim().split(':')[0]+')':'')+' — verifique manualmente, FECHE e reabra esse Chrome, logue e clique "Continuar"','error');
   }
   _ecacUltEstado=js.estado;
   if(['rodando','pausado','aguardando_relogin','aguardando_rede','reconectando','aguardando_login'].includes(js.estado)){
@@ -4999,15 +5071,15 @@ function ecacPausar(){
     // a pausa, passam a valer a partir do próximo cliente.
     const delay=parseFloat(document.getElementById('ecac-delay').value);
     const tentativas=parseInt(document.getElementById('ecac-tent').value);
-    _ecacFetch('/retomar',{method:'POST',headers:{'Content-Type':'application/json'},
+    _ecacTodos('/retomar',{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({delay:isNaN(delay)?null:delay,tentativas:isNaN(tentativas)?null:tentativas})});
     b.textContent='⏸ Pausar';b.dataset.paused='';
     showToast('Retomando — reconferindo a conexão com o Chrome…','success');
   }
-  else{_ecacFetch('/pausar',{method:'POST'});b.textContent='▶️ Retomar';b.dataset.paused='1';}
+  else{_ecacTodos('/pausar',{method:'POST'});b.textContent='▶️ Retomar';b.dataset.paused='1';}
 }
-function ecacParar(){_ecacFetch('/parar',{method:'POST'});showToast('Parando após o cliente atual…','success');}
-function ecacContinuar(){_ecacFetch('/continuar',{method:'POST'});document.getElementById('ecac-btn-continuar').style.display='none';}
+function ecacParar(){_ecacTodos('/parar',{method:'POST'});showToast('Parando após o cliente atual…','success');}
+function ecacContinuar(){_ecacTodos('/continuar',{method:'POST'});document.getElementById('ecac-btn-continuar').style.display='none';}
 function _ecacUltima(){try{const s=localStorage.getItem('cadastroIR_ecacUltima');return s?JSON.parse(s):null;}catch(e){return null;}}
 function _ecacSaveUltima(data){
   try{localStorage.setItem('cadastroIR_ecacUltima',JSON.stringify({fonte:'consulta_ecac',gerado_em:data.gerado_em||new Date().toLocaleString('pt-BR'),clientes:data.clientes||[]}));}
