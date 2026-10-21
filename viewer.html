@@ -3,10 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<meta http-equiv="Pragma" content="no-cache">
-<meta http-equiv="Expires" content="0">
-<title>TGC – Visualização</title>
+<title>TGC – Gestão de Clientes</title>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
 :root{--bg:#f0f4f9;--surface:#ffffff;--surface2:#eef2f7;--border:#d4dce9;--accent:#2d6be4;--accent2:#6c48d6;--green:#16a34a;--yellow:#d97706;--red:#dc2626;--orange:#ea580c;--cyan:#0891b2;--text:#1a2540;--text2:#4a5980;--text3:#8a97b4;--radius:10px;--shadow:0 2px 16px rgba(45,107,228,.10)}
@@ -47,7 +44,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 .search-wrap{position:relative;width:320px}
 .search-wrap input{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 33px 8px 12px;font-size:13px;color:var(--text);font-family:'DM Sans',sans-serif;outline:none;transition:border .15s}
 .search-wrap input:focus{border-color:var(--accent)}
-.search-icon{position:absolute;right:10px;top:50%;transform:translateY(-50%);color:var(--text3);font-size:14px;pointer-events:none}
+.search-icon{position:absolute;right:10px;top:50%;transform:translateY(-50%);color:var(--text3);font-size:14px;pointer-events:all;cursor:pointer}
 .topbar-right{display:flex;gap:7px;margin-left:auto}
 .btn{display:inline-flex;align-items:center;gap:5px;padding:7px 14px;border-radius:8px;font-size:12.5px;font-weight:600;cursor:pointer;transition:all .15s;border:none;font-family:'DM Sans',sans-serif}
 .btn-primary{background:var(--accent);color:#fff}.btn-primary:hover{background:#1a55c8}
@@ -365,7 +362,7 @@ body.exercicios-level .full-edit-only{display:none!important}
 <aside class="sidebar">
   <div class="logo">
     <div class="logo-title">TGC</div>
-    <div class="logo-sub">Modo Visualização</div>
+    <div class="logo-sub">Gestão de Clientes</div>
   </div>
   <!-- Clientes: sempre visível, não rola -->
   <nav class="nav" style="flex-shrink:0">
@@ -399,7 +396,8 @@ body.exercicios-level .full-edit-only{display:none!important}
   <nav class="nav" style="padding-top:2px;padding-bottom:10px;flex-shrink:0">
     <button class="nav-item" onclick="showRelatorio()" id="nav-relatorio"><span class="nav-icon">📊</span>Relatórios</button>
     <button class="nav-item" onclick="showHonorarios()" id="nav-honorarios"><span class="nav-icon">💵</span>Honorários</button>
-    <!-- Backup/Importar oculto no modo visualização -->
+    <button class="nav-item" onclick="showView('importar')" id="nav-importar"><span class="nav-icon">📥</span>Backup / Importar</button>
+    <button class="nav-item" onclick="showView('consulta-ecac')" id="nav-consulta-ecac"><span class="nav-icon">📨</span>Consulta e-CAC</button>
   </nav>
 </aside>
 <!-- MAIN -->
@@ -408,11 +406,12 @@ body.exercicios-level .full-edit-only{display:none!important}
     <!-- Linha 1: busca + ações -->
     <div id="topbar-linha1" style="display:flex;align-items:center;gap:8px">
       <div class="search-wrap" style="flex:1">
-        <span class="search-icon">🔍</span>
-        <input type="text" id="search-input" placeholder="Nome, CPF/CNPJ, email, telefone, cidade…" oninput="filterClients();if(currentView==='decl')renderDecl()">
+        <span class="search-icon" onclick="if(currentView!=='decl')showView('lista');filterClients();if(currentView==='decl')renderDecl()">🔍</span>
+        <input type="text" id="search-input" placeholder="Nome, CPF/CNPJ, email, telefone, cidade…" oninput="if(currentView!=='decl')showView('lista');filterClients();if(currentView==='decl')renderDecl()" onkeydown="if(event.key==='Enter'){if(currentView!=='decl')showView('lista');filterClients();if(currentView==='decl')renderDecl();}">
       </div>
       <span id="gh-status-badge" class="gh-status" style="display:none"></span>
       <span id="save-indicator" style="display:none;font-size:11.5px;padding:2px 8px;border-radius:10px;font-weight:500"></span>
+      <button id="btn-undo" class="btn btn-ghost btn-sm" onclick="desfazer()" title="Desfazer última alteração salva" style="display:none;align-items:center;gap:4px;flex-shrink:0;white-space:nowrap">↩️ Desfazer</button>
       <span id="readonly-badge" class="readonly-badge" style="display:none">🔒 Modo Consulta</span>
       <div class="topbar-sep"></div>
       <button class="btn btn-ghost btn-sm" onclick="showView('lotes')" id="btn-lotes" style="flex-shrink:0;white-space:nowrap">📋 Lotes</button>
@@ -420,8 +419,7 @@ body.exercicios-level .full-edit-only{display:none!important}
       <div class="topbar-sep"></div>
       <span id="user-badge" class="user-badge" style="display:none" onclick="openUserOptions()"></span>
       <button class="btn btn-ghost btn-sm" id="btn-equipe" onclick="openUserManager()" title="Gerenciar Equipe" style="display:none">👥</button>
-      <button class="btn btn-ghost btn-sm" id="btn-sync" onclick="syncDados()" title="Buscar dados mais recentes do servidor" style="color:var(--accent);flex-shrink:0">🔄 Sincronizar</button>
-      <button class="btn btn-ghost btn-sm edit-only" onclick="openGHConfigViewer()" id="gh-config-btn" title="Configurar token de leitura" style="color:var(--text3)">🔑 Token</button>
+      <button class="btn btn-ghost btn-sm" onclick="openGHConfig()" id="gh-config-btn" title="Configurar GitHub">⚙️</button>
     </div>
     <!-- Linha 2: Novo Cliente + filtros agrupados -->
     <div id="topbar-linha2" style="display:flex;align-items:center;gap:6px;flex-wrap:nowrap">
@@ -451,16 +449,18 @@ body.exercicios-level .full-edit-only{display:none!important}
     <div class="detail-wrap" id="detail-content"></div>
   </div>
   <div class="content" id="view-decl" style="display:none">
-    <div style="margin-bottom:10px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-      <div id="decl-view-title" style="font-family:'Syne',sans-serif;font-size:16px;font-weight:700;display:flex;align-items:center;gap:7px"></div>
-      <span class="count-badge" id="decl-count">—</span>
-      <div class="search-wrap" style="width:260px;margin-left:auto">
-        <span class="search-icon">🔍</span>
-        <input type="text" id="decl-search" placeholder="Filtrar por nome ou CPF…" oninput="renderDecl()">
+    <div style="position:sticky;top:0;z-index:10;background:var(--surface);margin:-20px -20px 0;padding:16px 20px 10px;border-bottom:1px solid var(--border)">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px">
+        <div id="decl-view-title" style="font-family:'Syne',sans-serif;font-size:16px;font-weight:700;display:flex;align-items:center;gap:7px"></div>
+        <span class="count-badge" id="decl-count">—</span>
+        <div class="search-wrap" style="width:260px;margin-left:auto">
+          <span class="search-icon">🔍</span>
+          <input type="text" id="decl-search" placeholder="Filtrar por nome ou CPF…" oninput="renderDecl()">
+        </div>
       </div>
+      <div id="decl-year-chips" style="display:flex;flex-wrap:wrap;gap:5px"></div>
     </div>
-    <div id="decl-year-chips" style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:14px"></div>
-    <div id="decl-list"></div>
+    <div id="decl-list" style="padding-top:14px"></div>
   </div>
   <!-- views legados mantidos para compatibilidade com openExModal/renderMalha -->
   <div id="view-malha" style="display:none"></div>
@@ -657,6 +657,7 @@ body.exercicios-level .full-edit-only{display:none!important}
         <p style="font-size:13.5px;color:var(--text2)">Importe o resultado da <strong>Consulta e-CAC</strong> (arquivo <code>comparacao_ecac_*.json</code> gerado pelo programa de consulta) para comparar a situação das declarações no e-CAC com o cadastro e destacar as divergências por exercício.</p>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           <label class="btn btn-primary" style="cursor:pointer">📨 Importar resultado e-CAC<input type="file" accept=".json" style="display:none" onchange="importEcac(event)"></label>
+          <button class="btn btn-ghost" id="ecac-btn-ultima2" onclick="ecacVerUltima()" style="display:none">🕘 Ver última comparação e-CAC</button>
         </div>
         <p style="font-size:11.5px;color:var(--text3)">O arquivo é gerado ao final da verificação, na pasta <code>consulta_ecac</code>, junto com a planilha. A importação apenas compara e, se você confirmar, marca os exercícios divergentes com a flag ⚠️ ATENÇÃO — nenhum outro dado é alterado.</p>
       </div>
@@ -675,6 +676,7 @@ body.exercicios-level .full-edit-only{display:none!important}
           <input type="text" id="hon-busca" oninput="renderHonorariosLista()" placeholder="Filtrar por nome ou CPF…" style="flex:1;min-width:220px;font-size:13px;padding:8px 11px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'DM Sans',sans-serif;outline:none">
           <button class="btn btn-ghost btn-sm" onclick="honCopiar()">📋 Copiar lista</button>
           <button class="btn btn-ghost btn-sm" onclick="honCSV()">⬇️ Baixar CSV</button>
+          <button class="btn btn-ghost btn-sm" id="hon-btn-vinc" onclick="honAbrirVinculador()" title="Marca os lançamentos antigos com o exercício a que se referem">🔗 Vincular antigos</button>
         </div>
         <div style="font-size:11.5px;color:var(--text3);line-height:1.6;border-top:1px solid var(--border);padding-top:10px">
           <b style="color:var(--text2)">Como é feito o cruzamento:</b> a base são os clientes com o exercício selecionado <b>cadastrado</b> no programa (= declaração transmitida pela TGC). Pagamento lançado dentro do exercício vale pelo <b>vínculo</b>, sem depender do texto — e honorário de PER ou de processo não quita a declaração. Para os lançamentos antigos, sem vínculo, o texto do campo <i>Serviço</i> é lido e os anos citados são expandidos — <span style="font-family:'DM Mono',monospace">REST. IR 2021 A 2025</span> conta para 2021, 2022, 2023, 2024 e 2025; <span style="font-family:'DM Mono',monospace">DIRPF 2025 E 2026</span> conta para os dois. A <b>data</b> do pagamento não classifica sozinha — só é usada para separar o que precisa de conferência manual. Quem ainda não teve a declaração <b>PROCESSADA</b> vai para ⏳ <b>Ainda não devido</b> — o honorário só é cobrado depois do processamento. Clientes com <b>VOLUNTÁRIO</b> nas observações ficam na faixa 🤝 própria. Nenhum dos dois entra no cálculo do percentual de quites.
@@ -698,6 +700,80 @@ body.exercicios-level .full-edit-only{display:none!important}
       </div>
     </div>
     <div id="eproc-lista"></div>
+  </div>
+  <div class="content" id="view-consulta-ecac" style="display:none">
+    <div class="table-wrap" style="max-width:780px">
+      <div class="table-header"><span class="table-title">📨 Consulta e-CAC</span><span id="ecac-srv-badge" style="margin-left:auto;font-size:12px;font-weight:600;color:var(--text3)">—</span></div>
+      <div style="padding:22px;display:flex;flex-direction:column;gap:16px">
+        <p style="font-size:13.5px;color:var(--text2)">Verifica a situação das declarações no e-CAC (Portal MIR) e compara com o cadastro, e/ou lê os processos digitais (e-Processo) e aponta juntadas novas em <b>📂 Processos e-CAC</b> — direto daqui, sem a janela separada. Requer o servidor local de consulta rodando.</p>
+        <div id="ecac-srv-off" style="display:none;background:rgba(220,38,38,.06);border:1px solid rgba(220,38,38,.3);border-radius:9px;padding:12px;font-size:13px;color:var(--text2)">O servidor de consulta não está rodando. O jeito mais simples é abrir o programa pelo atalho <code>ABRIR PROGRAMA e-CAC.bat</code> (liga o servidor e o programa juntos). Em alternativa, abra <code>INICIAR SERVIDOR e-CAC.bat</code> na pasta <code>consulta_ecac</code> e deixe a janela aberta. Depois clique <button class="btn btn-ghost btn-sm" onclick="ecacPing()">Verificar conexão</button>.</div>
+        <div id="ecac-painel" style="display:none;flex-direction:column;gap:18px">
+          <div>
+            <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.6px">1 · Abrir o Chrome e logar</div>
+            <p style="font-size:12.5px;color:var(--text2);margin:4px 0 8px">Abre o Chrome no e-CAC. Faça o login com o certificado e deixe a janela aberta. Com mais de uma sessão, cada sessão tem o seu Chrome — logue em todos.</p>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
+              <div class="form-group" style="width:190px"><label>Sessões simultâneas</label>
+                <select id="ecac-sessoes" onchange="ecacSetSessoes(this.value)">
+                  <option value="1">1 sessão (normal)</option>
+                  <option value="2">2 sessões</option>
+                  <option value="3">3 sessões</option>
+                  <option value="4" selected>4 sessões</option>
+                </select></div>
+              <div id="ecac-btns-chrome" style="display:flex;gap:8px;flex-wrap:wrap"></div>
+            </div>
+            <div id="ecac-sess-info" style="font-size:12px;color:var(--text3);margin-top:6px"></div>
+          </div>
+          <div>
+            <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.6px">2 · O que consultar e quais clientes</div>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-top:8px">
+              <div class="form-group" style="min-width:250px"><label>Tipo de consulta</label>
+                <select id="ecac-modo" onchange="ecacPreview()">
+                  <option value="declaracoes">📄 Declarações (Meu Imposto de Renda)</option>
+                  <option value="processos">📂 Processos (e-Processo)</option>
+                  <option value="ambos" selected>📄 + 📂 Declarações e Processos</option>
+                </select></div>
+              <div class="form-group" style="min-width:240px"><label>Grupo</label>
+                <select id="ecac-grupo" onchange="ecacPreview()">
+                  <option value="acesso">Apenas com acesso (cert. ou procuração)</option>
+                  <option value="malha">Apenas em malha</option>
+                  <option value="fila">Apenas em fila de restituição</option>
+                  <option value="acesso_malha">Com acesso e em malha</option>
+                  <option value="acesso_fila">Com acesso e em fila</option>
+                  <option value="sem_acesso">Sem acesso (sem cadastro, "sem acesso" ou procuração cancelada)</option>
+                  <option value="senha_gov">Senha GOV</option>
+                  <option value="todos">Todos os clientes (PF)</option>
+                </select></div>
+              <div class="form-group" style="min-width:170px"><label>Filtrar por nome</label>
+                <input type="text" id="ecac-filtro" oninput="ecacPreview()" placeholder="opcional"></div>
+              <div class="form-group" style="min-width:200px"><label>Começar a partir de (nome ou CPF)</label>
+                <input type="text" id="ecac-comecar" oninput="ecacPreview()" placeholder="retomar de um cliente"></div>
+              <div class="form-group" style="width:110px"><label>Pausa (s)</label>
+                <input type="number" id="ecac-delay" value="1" min="0" max="30"></div>
+              <div class="form-group" style="width:110px"><label>Tentativas</label>
+                <input type="number" id="ecac-tent" value="2" min="1" max="8"></div>
+            </div>
+            <div id="ecac-preview" style="font-size:12.5px;color:var(--text2);margin-top:8px"></div>
+          </div>
+          <div>
+            <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.6px">3 · Verificação</div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+              <button class="btn btn-primary" id="ecac-btn-iniciar" onclick="ecacIniciar()">▶️ Iniciar verificação</button>
+              <button class="btn btn-ghost" id="ecac-btn-pausar" onclick="ecacPausar()" style="display:none">⏸ Pausar</button>
+              <button class="btn btn-ghost" id="ecac-btn-parar" onclick="ecacParar()" style="display:none">⏹ Parar</button>
+              <button class="btn btn-ghost" id="ecac-btn-continuar" onclick="ecacContinuar()" style="display:none">🔄 Continuar (após relogar)</button>
+              <button class="btn btn-primary" id="ecac-btn-result" onclick="ecacAbrirResultado()" style="display:none">📊 Ver comparação</button>
+              <button class="btn btn-ghost" id="ecac-btn-ultima" onclick="ecacVerUltima()" style="display:none">🕘 Última comparação</button>
+              <button class="btn btn-primary" id="ecac-btn-procs" onclick="showView('processos')" style="display:none">📂 Ver processos</button>
+            </div>
+            <div id="ecac-prog-wrap" style="display:none;margin-top:12px">
+              <div style="height:8px;background:var(--surface2);border-radius:6px;overflow:hidden"><div id="ecac-prog-bar" style="height:100%;width:0;background:var(--accent);transition:width .3s"></div></div>
+              <div id="ecac-prog-txt" style="font-size:12px;color:var(--text3);margin-top:6px"></div>
+              <pre id="ecac-log" style="margin-top:8px;max-height:240px;overflow:auto;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px;font-size:11.5px;white-space:pre-wrap;font-family:'DM Mono',monospace;color:var(--text2)"></pre>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 </div>
@@ -1062,31 +1138,37 @@ body.exercicios-level .full-edit-only{display:none!important}
   </div>
 </div>
 
-<!-- MODAL CONFIGURAR GITHUB (Viewer) -->
+<!-- MODAL CONFIGURAR GITHUB -->
 <div class="modal-overlay" id="modal-gh-config" style="display:none" onclick="if(event.target===this)this.style.display='none'">
-<div class="modal modal-sm" style="max-width:480px">
+<div class="modal modal-sm" style="max-width:500px">
   <div class="modal-head">
-    <span class="modal-title">🔑 Token de Leitura</span>
+    <span class="modal-title">⚙️ Configurar GitHub</span>
     <button class="close-btn" onclick="document.getElementById('modal-gh-config').style.display='none'">✕</button>
   </div>
   <div class="modal-body">
-    <div class="gh-hint">ℹ️ Configure o token de leitura fornecido pelo administrador para acessar os dados.</div>
-    <div class="form-group">
-      <label>Token de leitura (fornecido pelo admin)</label>
-      <input type="password" id="gh-read-token" placeholder="ghp_xxxxxxxxxxxxxxxx">
-      <div style="font-size:11px;color:var(--text3);margin-top:4px">Este token permite apenas visualizar os dados, nunca modificar. Fica salvo somente neste navegador.</div>
+    <div class="gh-hint">ℹ️ Os dados ficam salvos num repositório GitHub e acessíveis por link. Configure uma vez e esqueça.</div>
+    <div class="form-row">
+      <div class="form-group"><label>Usuário GitHub</label>
+        <input type="text" id="gh-owner" placeholder="ex: antenorfernandes"></div>
+      <div class="form-group"><label>Nome do Repositório</label>
+        <input type="text" id="gh-repo" placeholder="ex: cadastroIR"></div>
     </div>
-    <!-- Hidden fields needed by existing functions -->
-    <input type="hidden" id="gh-owner" value="">
-    <input type="hidden" id="gh-repo" value="">
-    <input type="hidden" id="gh-token" value="">
-    <input type="hidden" id="gh-write-token" value="">
+    <div class="form-group">
+      <label>Token pessoal — administrador</label>
+      <input type="password" id="gh-token" placeholder="ghp_xxxxxxxxxxxxxxxx">
+      <div style="font-size:11px;color:var(--text3);margin-top:4px">Gere em: github.com → Settings → Developer settings → Personal access tokens → Tokens (classic) → scope: <strong>repo</strong></div>
+    </div>
+    <div class="form-group">
+      <label>Token de escrita <span style="font-weight:400;color:var(--text3)">(colaboradores — obrigatório para salvar)</span></label>
+      <input type="password" id="gh-write-token" placeholder="ghp_xxxxxxxxxxxxxxxx">
+      <div style="font-size:11px;color:var(--text3);margin-top:4px">Cada colaborador precisa configurar este campo uma vez. O admin cria o token (scope: <strong>repo</strong>) e envia para cada colaborador por WhatsApp/email. O token fica salvo apenas neste navegador.</div>
+    </div>
     <div id="gh-test-result" style="font-size:12.5px;margin-top:6px"></div>
   </div>
   <div class="modal-foot">
-    <button class="btn btn-ghost btn-sm" onclick="testGHConnectionViewer()">🔌 Testar</button>
+    <button class="btn btn-ghost btn-sm" onclick="testGHConnection()">🔌 Testar conexão</button>
     <button class="btn btn-ghost" onclick="document.getElementById('modal-gh-config').style.display='none'">Cancelar</button>
-    <button class="btn btn-primary" onclick="saveViewerToken()">💾 Salvar token</button>
+    <button class="btn btn-primary" onclick="saveGHConfig()">Salvar configuração</button>
   </div>
 </div>
 </div>
@@ -1149,23 +1231,12 @@ body.exercicios-level .full-edit-only{display:none!important}
 
 <button class="scroll-btn" id="scroll-top-btn" title="Subir" onclick="document.querySelector('.content').scrollTo({top:0,behavior:'smooth'})">↑</button>
 <button class="scroll-btn" id="scroll-bot-btn" title="Descer" onclick="document.querySelector('.content').scrollTo({top:999999,behavior:'smooth'})">↓</button>
-
-<!-- Banner de nova versão disponível -->
-<div id="update-banner" style="display:none;position:fixed;bottom:0;left:0;right:0;z-index:500;background:#2d6be4;color:#fff;padding:12px 24px;align-items:center;justify-content:center;gap:14px;font-size:13.5px;font-weight:600;box-shadow:0 -3px 16px rgba(45,107,228,.35)">
-  <span>🔄 Nova versão do sistema disponível!</span>
-  <button onclick="location.reload()" style="background:rgba(255,255,255,.22);border:1px solid rgba(255,255,255,.45);color:#fff;padding:5px 16px;border-radius:7px;font-size:13px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif">Atualizar agora</button>
-  <button onclick="document.getElementById('update-banner').style.display='none'" style="background:none;border:none;color:rgba(255,255,255,.65);padding:4px 8px;border-radius:7px;font-size:18px;cursor:pointer;line-height:1">✕</button>
-</div>
 <div id="app-loading" style="position:fixed;inset:0;background:var(--surface,#0f1117);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;gap:16px">
   <div style="width:36px;height:36px;border:3px solid rgba(79,138,255,.2);border-top-color:var(--accent,#4f8aff);border-radius:50%;animation:spin .8s linear infinite"></div>
   <div style="color:var(--text2,#8892a4);font-size:13px">Carregando…</div>
 </div>
 
 <script>
-// ── VIEWER MODE ─────────────────────────────────────────────────────────────
-const VIEWER_MODE = true; // Este arquivo é somente leitura
-// Token de leitura para acessar repositório privado (somente leitura, sem risco)
-const VIEWER_TOKEN = null; // Token removido por segurança — configurar via botão 🔑 Token
 // ── INDEXEDDB (cache local — funciona offline) ────────────────────────────────
 const DB_NAME='cadastroIR2', DB_VER=1;
 let db;
@@ -1215,35 +1286,11 @@ function loadGHCfg(){
     const h=new URLSearchParams(window.location.hash.slice(1)).get('gh');
     if(h){const[o,r]=h.split('/');ghCfg={owner:o,repo:r,token:null};}
   }catch(e){}
-  // 1b. Aceita token de leitura via hash: viewer.html#readtoken=ghp_xxx
-  // Salva no localStorage para que não precise ser informado novamente
-  try{
-    const params=new URLSearchParams(window.location.hash.slice(1));
-    const hashToken=params.get('readtoken');
-    if(hashToken){
-      const saved=JSON.parse(localStorage.getItem(GH_CFG_KEY)||'{}');
-      saved.readToken=hashToken;
-      localStorage.setItem(GH_CFG_KEY,JSON.stringify(saved));
-      // Limpa o hash da URL para não expor o token no histórico do browser
-      history.replaceState(null,'',window.location.pathname+window.location.search);
-    }
-  }catch(e){}
-  // 2. Viewer usa token read-only embutido (se preenchido)
-  if(VIEWER_MODE){
-    const savedCfg = (() => {try{return JSON.parse(localStorage.getItem(GH_CFG_KEY));}catch(e){return null;}})();
-    ghCfg={
-      owner: savedCfg?.owner || GH_DEFAULT.owner,
-      repo: savedCfg?.repo || GH_DEFAULT.repo,
-      token: VIEWER_TOKEN || savedCfg?.readToken || null,
-      readToken: VIEWER_TOKEN || savedCfg?.readToken || null
-    };
-    isReadOnly = true; // Viewer: always read-only
-  } else {
-  // 3. Configuração salva no localStorage (inclui token do admin)
+  // 2. Configuração salva no localStorage (inclui token do admin)
   if(!ghCfg){
     try{ghCfg=JSON.parse(localStorage.getItem(GH_CFG_KEY))||null;}catch(e){}
   }
-  // 4. Fallback: usa repositório padrão embutido
+  // 3. Fallback: usa repositório padrão embutido (permite acesso de colaboradores sem configuração)
   if(!ghCfg){
     ghCfg={owner:GH_DEFAULT.owner,repo:GH_DEFAULT.repo,token:null};
   }
@@ -1252,7 +1299,6 @@ function loadGHCfg(){
     localStorage.setItem(GH_CFG_KEY,JSON.stringify({owner:ghCfg.owner,repo:ghCfg.repo}));
   }
   isReadOnly=!(ghCfg?.token);
-  }
   // Restaura SHA salvo (permite ghSave funcionar mesmo após API rate limit)
   if(!ghSHA){try{const s=localStorage.getItem('cadastroIR_ghSHA');if(s)ghSHA=s;}catch(e){}}
   applyReadOnlyUI();
@@ -1274,13 +1320,15 @@ function applyReadOnlyUI(){
   // "Backup / Importar" apenas para admin (evita importação indevida)
   const navImportar=document.getElementById('nav-importar');
   if(navImportar)navImportar.style.display=(currentUser==='admin')?'flex':'none';
+  const navEcac=document.getElementById('nav-consulta-ecac');
+  if(navEcac)navEcac.style.display=(currentUser==='admin')?'flex':'none';
 
   // Sidebar: oculta tudo quando não logado (dados ainda não foram renderizados)
   const aside=document.querySelector('aside.sidebar');
   if(aside){
     // Mostra a nav de declarações e relatórios para qualquer usuário logado
     aside.querySelectorAll('.nav-item').forEach(el=>{
-      if(el.id==='nav-importar')return; // já tratado acima
+      if(el.id==='nav-importar'||el.id==='nav-consulta-ecac')return; // já tratado acima
       el.style.display=logado?'flex':'none';
     });
   }
@@ -1303,7 +1351,6 @@ function fetchComTimeout(url,opts={},ms=8000){
   const t=setTimeout(()=>ac.abort(),ms);
   return fetch(url,{...opts,signal:ac.signal}).finally(()=>clearTimeout(t));
 }
-let _ghLastError=null; // armazena último erro da API para diagnóstico
 async function ghFetch(){
   if(!ghCfg?.owner||!ghCfg?.repo)return null;
   const url=`https://api.github.com/repos/${ghCfg.owner}/${ghCfg.repo}/contents/data.json`;
@@ -1314,85 +1361,35 @@ async function ghFetch(){
   try{
     const r=await fetchComTimeout(url,{headers,cache:'no-store'},8000);
     if(!r.ok){
-      _ghLastError=`API HTTP ${r.status}`;
       // API falhou (rate limit, etc.) — tenta via raw como fallback
       return await ghFetchRaw();
     }
     const j=await r.json();
     ghSHA=j.sha;
     try{localStorage.setItem('cadastroIR_ghSHA',ghSHA);}catch(e){}
-    // Arquivo grande: API não retorna conteúdo inline — usa download_url pré-autenticado
-    if(j.encoding==='none'||!j.content){
-      if(j.download_url){
-        try{
-          const dr=await fetchComTimeout(j.download_url,{cache:'no-store'},20000);
-          if(!dr.ok){_ghLastError=`Download HTTP ${dr.status}`;return await ghFetchRaw();}
-          const parsed=await dr.json();
-          if(Array.isArray(parsed.access))accessList=parsed.access;
-          _ghLastError=null;
-          return parsed;
-        }catch(e){_ghLastError=e.name==='AbortError'?'Timeout download':e.message;}
-      }
-      return await ghFetchRaw();
-    }
+    if(j.encoding==='none'||!j.content){return await ghFetchRaw();}
     const parsed=JSON.parse(decodeURIComponent(escape(atob(j.content.replace(/\n/g,'')))));
     if(Array.isArray(parsed.access))accessList=parsed.access;
-    _ghLastError=null; // sucesso
     return parsed;
-  }catch(e){_ghLastError=e.name==='AbortError'?'Timeout (8s)':e.message;return await ghFetchRaw();}
+  }catch(e){return await ghFetchRaw();}
 }
 async function ghFetchRaw(){
-  // Repositório privado: sempre usa a API autenticada como fallback
-  const fallbackToken=ghCfg?.token||ghCfg?.readToken||ghCfg?.writeToken||null;
-  if(fallbackToken&&ghCfg?.owner&&ghCfg?.repo){
-    try{
-      const url=`https://api.github.com/repos/${ghCfg.owner}/${ghCfg.repo}/contents/data.json`;
-      const headers={'Accept':'application/vnd.github.v3+json','Authorization':`token ${fallbackToken}`};
-      const r=await fetchComTimeout(url,{headers,cache:'no-store'},8000);
-      if(r.ok){
-        const j=await r.json();
-        ghSHA=j.sha;
-        try{localStorage.setItem('cadastroIR_ghSHA',ghSHA);}catch(e){}
-        if(j.encoding==='none'||!j.content){
-          if(j.download_url){
-            try{
-              const dr=await fetchComTimeout(j.download_url,{cache:'no-store'},20000);
-              if(dr.ok){
-                const parsed=await dr.json();
-                if(Array.isArray(parsed.access))accessList=parsed.access;
-                _ghLastError=null;
-                return parsed;
-              }
-            }catch(e2){}
-          }
-          throw new Error('large-file-sem-download');
-        }
-        const parsed=JSON.parse(decodeURIComponent(escape(atob(j.content.replace(/\n/g,'')))));
-        if(Array.isArray(parsed.access))accessList=parsed.access;
-        _ghLastError=null;
-        return parsed;
-      }else{_ghLastError=`Raw-API HTTP ${r.status}`;}
-    }catch(e){_ghLastError=e.name==='AbortError'?'Timeout raw-api':e.message;}
-  }
-  // Fallback via raw URL — SEM Authorization header (raw.githubusercontent.com não suporta
-  // CORS preflight com credenciais; use só para repos públicos)
+  // Leitura via raw.githubusercontent.com — com autenticação para repos privados e arquivos grandes
   if(!ghCfg?.owner||!ghCfg?.repo)return null;
-  if(fallbackToken){
-    // Repositório privado: raw URL não funciona com auth (CORS). Não tenta.
-    _ghLastError=_ghLastError||'Repo privado: somente API suportada';
-    return null;
-  }
   try{
     const branch=ghCfg.branch||'main';
-    const rawUrl=`https://raw.githubusercontent.com/${ghCfg.owner}/${ghCfg.repo}/${branch}/data.json?t=${Date.now()}`;
-    const r=await fetchComTimeout(rawUrl,{cache:'no-store'},15000);
-    if(!r.ok){_ghLastError=`Raw HTTP ${r.status}`;return null;}
+    const rawUrl=`https://raw.githubusercontent.com/${ghCfg.owner}/${ghCfg.repo}/${branch}/data.json`;
+    const fallbackToken=ghCfg?.token||ghCfg?.writeToken||null;
+    const rawHeaders={};if(fallbackToken)rawHeaders['Authorization']=`token ${fallbackToken}`;
+    const r=await fetchComTimeout(rawUrl,{headers:rawHeaders,cache:'no-store'},15000);
+    if(!r.ok)return null;
     const parsed=await r.json();
     if(Array.isArray(parsed.access))accessList=parsed.access;
+    // Armazena token de escrita compartilhado para colaboradores
+    // Recupera SHA do localStorage se disponível (para saves futuros)
     if(!ghSHA){try{const s=localStorage.getItem('cadastroIR_ghSHA');if(s)ghSHA=s;}catch(e){}}
-    _ghLastError=null;
     return parsed;
-  }catch(e){_ghLastError=e.name==='AbortError'?'Timeout raw':e.message;return null;}
+  }catch(e){return null;}
 }
 function getWriteToken(){
   // Admin usa ghCfg.token; colaboradores usam ghCfg.writeToken (configurado localmente no ⚙️)
@@ -1425,8 +1422,70 @@ function setSaveIndicator(state,msg){
     el.style.display='none';
   }
 }
+// ── DESFAZER (undo das gravações desta sessão) ────────────────────────────────
+let _undoStack=[];        // snapshots anteriores (deep copies); mais recente no fim
+let _undoBaseline=null;   // estado atualmente persistido nesta sessão
+let _suppressUndoCapture=false;
+const UNDO_MAX=20;
+function _snapshotAtual(){
+  return JSON.parse(JSON.stringify({clientes:allClients,lotes:allLotes,access:accessList}));
+}
+function _captureUndoAfterSave(){
+  // Chamado após cada gravação bem-sucedida: empilha o estado anterior.
+  if(_suppressUndoCapture)return;
+  if(_undoBaseline!==null){
+    _undoStack.push(_undoBaseline);
+    while(_undoStack.length>UNDO_MAX)_undoStack.shift();
+  }
+  _undoBaseline=_snapshotAtual();
+  updateUndoButton();
+}
+function updateUndoButton(){
+  const b=document.getElementById('btn-undo');
+  if(!b)return;
+  if(_undoStack.length>0&&getNivel()!=='visualizar'){
+    b.style.display='inline-flex';
+    b.title=`Desfazer última alteração salva (${_undoStack.length} passo${_undoStack.length>1?'s':''} disponíve${_undoStack.length>1?'is':'l'})`;
+  }else{
+    b.style.display='none';
+  }
+}
+async function _resyncDB(){
+  // Sincroniza o IndexedDB local com o estado em memória (clientes keyPath=id, lotes keyPath=data).
+  // Necessário porque a persistência local é a fonte usada no reload quando o GitHub está indisponível.
+  try{
+    const dbClientes=await dbAll('clientes');
+    const idsMem=new Set(allClients.map(c=>c.id));
+    for(const c of allClients)await dbPut('clientes',c);
+    for(const c of dbClientes)if(!idsMem.has(c.id))await dbDelete('clientes',c.id);
+    const dbLotes=await dbAll('lotes');
+    const datasMem=new Set(allLotes.map(l=>l.data));
+    for(const l of allLotes)await dbPut('lotes',l);
+    for(const l of dbLotes)if(!datasMem.has(l.data))await dbDelete('lotes',l.data);
+  }catch(e){console.error('[undo] resyncDB falhou:',e);}
+}
+async function desfazer(){
+  if(getNivel()==='visualizar'){showToast('Sem permissão para editar','error');return;}
+  if(!_undoStack.length){showToast('Nada para desfazer','info');return;}
+  if(!confirm('Desfazer a última alteração salva?\n\nTodos os dados voltam ao estado imediatamente anterior à última gravação.'))return;
+  const prev=_undoStack.pop();
+  allClients=Array.isArray(prev.clientes)?prev.clientes:[];
+  allLotes=Array.isArray(prev.lotes)?prev.lotes:[];
+  if(Array.isArray(prev.access))accessList=prev.access;
+  refreshCurrentView();
+  // 1) Persiste LOCAL (IndexedDB) — é o que sobrevive ao reload mesmo sem GitHub
+  await _resyncDB();
+  try{localStorage.setItem('cadastroIR_accessList',JSON.stringify(accessList));}catch(e){}
+  // 2) Tenta gravar no GitHub (melhor esforço, igual a uma edição normal)
+  _suppressUndoCapture=true;
+  let ok=false;
+  try{ok=await ghSave();}catch(e){ok=false;}
+  _suppressUndoCapture=false;
+  _undoBaseline=_snapshotAtual();
+  updateUndoButton();
+  showToast(ok?'↩️ Alteração desfeita e salva':'↩️ Desfeito e salvo localmente (GitHub indisponível)',ok?'success':'info');
+}
 async function ghSave(){
-  if(VIEWER_MODE){return false;} // Viewer: never save
   const wToken=getWriteToken();
   if(!wToken||!ghCfg?.owner||!ghCfg?.repo){
     setSaveIndicator('error','Token não configurado — abra ⚙️ e preencha o token');
@@ -1449,6 +1508,7 @@ async function ghSave(){
       ghSHA=j.content.sha;
       try{localStorage.setItem('cadastroIR_ghSHA',ghSHA);}catch(e){}
       setSaveIndicator('ok');
+      _captureUndoAfterSave();
       return true;
     }else{
       let errMsg=`HTTP ${r.status}`;
@@ -1473,6 +1533,7 @@ async function ghSave(){
               ghSHA=j2.content.sha;
               try{localStorage.setItem('cadastroIR_ghSHA',ghSHA);}catch(e){}
               setSaveIndicator('ok');
+              _captureUndoAfterSave();
               return true;
             }
           }
@@ -1517,7 +1578,9 @@ async function saveGHConfig(){
   const token=document.getElementById('gh-token').value.trim();
   const writeToken=document.getElementById('gh-write-token').value.trim();
   if(!owner||!repo){showToast('Preencha usuário e repositório','error');return;}
-  ghCfg={owner,repo,token:token||null,writeToken:writeToken||null};
+  // Preserva readToken existente (salvo pelo viewer.html) ao sobrescrever a config
+  const _prevCfg=(()=>{try{return JSON.parse(localStorage.getItem(GH_CFG_KEY));}catch(e){return null;}})();
+  ghCfg={owner,repo,token:token||null,writeToken:writeToken||null,readToken:_prevCfg?.readToken||null};
   localStorage.setItem(GH_CFG_KEY,JSON.stringify(ghCfg));
   isReadOnly=!token;
   if(token){
@@ -1775,50 +1838,6 @@ function updateUserBadge(){
 }
 
 // ── INIT ──────────────────────────────────────────────────────────────────────
-
-// ── VIEWER MODE HELPERS ───────────────────────────────────────────────────────
-function openGHConfigViewer(){
-  const saved = (() => {try{return JSON.parse(localStorage.getItem(GH_CFG_KEY));}catch(e){return null;}})();
-  document.getElementById('gh-read-token').value = saved?.readToken || '';
-  document.getElementById('gh-test-result').textContent = '';
-  document.getElementById('modal-gh-config').style.display='flex';
-}
-async function testGHConnectionViewer(){
-  const token = document.getElementById('gh-read-token').value.trim();
-  const res = document.getElementById('gh-test-result');
-  res.textContent = '🔌 Testando…';
-  const url = `https://api.github.com/repos/${ghCfg.owner}/${ghCfg.repo}/contents/data.json`;
-  const headers = {'Accept':'application/vnd.github.v3+json'};
-  if(token) headers['Authorization'] = `token ${token}`;
-  try{
-    const r = await fetch(url, {headers, cache:'no-store'});
-    if(r.ok) res.innerHTML = '<span style="color:var(--green)">✅ Conexão OK! Dados acessíveis.</span>';
-    else res.innerHTML = `<span style="color:var(--red)">❌ Erro ${r.status} — verifique o token.</span>`;
-  }catch(e){ res.innerHTML = '<span style="color:var(--red)">❌ Sem conexão.</span>'; }
-}
-async function saveViewerToken(){
-  const token = document.getElementById('gh-read-token').value.trim();
-  const saved = (() => {try{return JSON.parse(localStorage.getItem(GH_CFG_KEY));}catch(e){return null;}})();
-  // Preserva writeToken/token existentes (salvos pelo index.html) ao gravar o token de leitura
-  const newCfg = {owner: ghCfg.owner, repo: ghCfg.repo, readToken: token||null, writeToken: saved?.writeToken||null, token: saved?.token||null};
-  localStorage.setItem(GH_CFG_KEY, JSON.stringify(newCfg));
-  ghCfg.token = token || null;
-  ghCfg.readToken = token || null;
-  document.getElementById('modal-gh-config').style.display = 'none';
-  showToast('✅ Token salvo — recarregando dados…', 'success');
-  // Reload data with new token
-  const data = await ghFetch();
-  if(data){
-    allClients = data.clientes||[];
-    allLotes = data.lotes||[];
-    filteredClients = [...allClients];
-    refreshCurrentView();
-    showToast('✅ Dados carregados com sucesso!', 'success');
-  } else {
-    showToast('⚠️ Não foi possível carregar os dados. Verifique o token.', 'error');
-  }
-}
-
 async function init(){
   // Loading overlay: esconde SEMPRE ao final, mesmo em caso de erro
   const _hideLoader=()=>{const l=document.getElementById('app-loading');if(l)l.style.display='none';};
@@ -2172,15 +2191,12 @@ async function init(){
     console.log(`[mig] Padronização status e-CAC: ${_sCnt} clientes atualizados`);
   }
   // ── FIM MIGRAÇÃO ──
+  // Baseline do "Desfazer": estado carregado, para que a 1ª alteração da sessão seja reversível
+  _undoBaseline=_snapshotAtual();
   filteredClients=[...allClients];
-  // VIEWER MODE: auto-login como visualizador, sem pedir senha
-  if(VIEWER_MODE && !currentUser){
-    currentUser = {id:'viewer', nome:'Visualizador', codigo:'viewer', nivel:'visualizar'};
-    sessionStorage.setItem(SESSION_KEY, JSON.stringify(currentUser));
-  }
   applyReadOnlyUI(); // re-aplica após carregar accessList
   // Exige login antes de renderizar qualquer dado
-  const loginNeeded = !VIEWER_MODE && ghCfg?.owner && !currentUser && accessList.length>0;
+  const loginNeeded=ghCfg?.owner&&!currentUser&&accessList.length>0;
   if(loginNeeded){
     openLoginModal();
   }else{
@@ -2188,18 +2204,6 @@ async function init(){
     renderFilterChips();
     renderTable(filteredClients);
     populateYearSelects();
-  }
-  // VIEWER MODE: se os dados não carregaram, orienta o usuário
-  if(VIEWER_MODE && allClients.length === 0){
-    const tokenSalvo=(()=>{try{return JSON.parse(localStorage.getItem(GH_CFG_KEY))?.readToken;}catch(e){return null;}})();
-    if(!tokenSalvo){
-      // Sem token algum → abre o modal para configurar
-      showToast('🔑 Configure o token de acesso para visualizar os dados','info');
-      setTimeout(()=>openGHConfigViewer(),800);
-    }else{
-      // Token já salvo mas dados não carregaram → pode ser rede/rate limit, não pede o token de novo
-      showToast('⚠️ Não foi possível carregar os dados. Verifique sua conexão e tente 🔄 Sincronizar.','error');
-    }
   }
   // Mostra dica de configuração se GitHub ainda não foi configurado
   if(!ghCfg?.owner&&!isReadOnly){
@@ -2243,6 +2247,8 @@ function showView(v){
   if(v==='lotes')renderLotes();
   if(v==='honorarios')renderHonorarios();
   if(v==='processos')renderProcessos();
+  if(v==='consulta-ecac')ecacPing();
+  if(v==='importar'||v==='consulta-ecac')_ecacRefreshUltimaBtns();
 }
 function showDecl(status){
   declSemDDAOnly=false;
@@ -2568,17 +2574,15 @@ function renderFilterChips(){
     grupo1.map(chip1).join('')+sep+grupo2.map(chip2).join('')+multiHint;
 }
 function setFilter(k){
-  // Filtros do grupo1 (TODOS/PF/PJ): limpa multiselect
   activeFilters.clear();
   currentFilter=k;
   renderFilterChips();filterClients();if(currentView==='decl')renderDecl();
 }
 function toggleFilter(k){
-  // Filtros do grupo2: toggle multi-seleção
-  currentFilter=''; // desativa grupo1
+  currentFilter='';
   if(activeFilters.has(k)){
     activeFilters.delete(k);
-    if(activeFilters.size===0){currentFilter='TODOS';} // volta para Todos se esvaziar
+    if(activeFilters.size===0){currentFilter='TODOS';}
   }else{
     activeFilters.add(k);
   }
@@ -2654,7 +2658,6 @@ function filterClients(){
       ||(c.cpfCnpj||'').replace(/\D/g,'').includes(qDigits||q)
       ||(qDigits&&(c.telefone||'').replace(/\D/g,'').includes(qDigits));
     if(!mt)return false;}catch(e){return false;}
-    // Multi-filtro OR
     if(activeFilters.size>0){
       return [...activeFilters].some(k=>matchesFilter(c,k));
     }
@@ -4680,6 +4683,7 @@ function importEcac(e){
       if(data.fonte!=='consulta_ecac'||!Array.isArray(data.clientes))
         throw new Error('Arquivo não é um resultado de consulta e-CAC.');
       _ecacCompare=buildEcacCompare(data);
+      _ecacSaveUltima(data);
       renderEcacModal();
       document.getElementById('modal-ecac').style.display='flex';
     }catch(err){showToast('❌ '+err.message,'error');}
@@ -4695,15 +4699,21 @@ function buildEcacCompare(data){
     const d=r.cpf_digits||_digits(r.cpf);
     const c=d?byDigits.get(d):null;
     if(!c){naoEncontrados.push({nome:r.nome,cpf:r.cpf}); continue;}
-    const divs=[], outros=[];
+    const divs=[], outros=[], atualizados=[];
     for(const ano of Object.keys(r.exercicios||{})){
       const info=r.exercicios[ano]||{};
-      if(info.divergente){divs.push({ano,ecac:info.ecac,programa:info.programa}); totalDiv++;}
+      if(info.divergente){
+        // já atualizado depois desta consulta? (status atual do programa = e-CAC)
+        const atual=c.exercicios?.[ano]||'';
+        const alvo=ECAC_STATUS.find(s=>s.v===info.ecacPadrao);
+        if(alvo&&classifyStatus(atual).cls===alvo.cls){atualizados.push({ano,ecac:info.ecac});continue;}
+        divs.push({ano,ecac:info.ecac,programa:atual||info.programa,det:r.mir?.anos?.[ano]||null,padrao:alvo?alvo.v:'',legado:!!info.legado,tela:r.via==='tela'}); totalDiv++;
+      }
       else if(info.situacao==='ausente_ecac'||info.situacao==='incerto'){
         outros.push({ano,ecac:info.ecac,programa:info.programa,situacao:info.situacao});
       }
     }
-    matched.push({c,r,divs,outros});
+    matched.push({c,r,divs,outros,atualizados,avisos:(r.mir?.alertas||[])});
   }
   return {gerado_em:data.gerado_em||'',total:(data.clientes||[]).length,matched,naoEncontrados,totalDiv};
 }
@@ -4717,14 +4727,25 @@ function renderEcacModal(){
   let h='';
   h+=`<div style="font-size:12px;color:var(--text3)">Arquivo gerado em ${esc(x.gerado_em)||'—'}</div>`;
   h+=`<div style="display:flex;gap:8px;flex-wrap:wrap">${stat('No arquivo',x.total)}${stat('Casados por CPF',x.matched.length,'var(--green)')}${stat('Não encontrados',x.naoEncontrados.length,x.naoEncontrados.length?'var(--yellow)':'var(--text)')}${stat('Divergências',x.totalDiv,x.totalDiv?'var(--red)':'var(--green)')}</div>`;
-  const tbl=arr=>`<table style="width:100%;border-collapse:collapse;font-size:12.5px;margin-top:6px"><tr style="color:var(--text3);font-size:10.5px;text-transform:uppercase;letter-spacing:.5px"><td style="padding:4px 8px">Ano</td><td style="padding:4px 8px">e-CAC</td><td style="padding:4px 8px">Programa</td></tr>${arr.map(d=>`<tr><td style="padding:4px 8px;font-weight:600">${esc(d.ano)}</td><td style="padding:4px 8px;color:var(--red)">${esc(d.ecac||'—')}</td><td style="padding:4px 8px;color:var(--text2)">${esc(d.programa||'—')}</td></tr>`).join('')}</table>`;
+  const _det=d=>d.det?[ [d.det.resultado,_mirValor(d.det.valor)].filter(Boolean).join(' '), d.det.tipo&&d.det.tipo!=='Original'?d.det.tipo:'' ].filter(Boolean).join(' · '):'';
+  const _podeAtu=(typeof canEditExercicios==='function')?canEditExercicios():true;
+  const tbl=(arr,cid)=>`<table style="width:100%;border-collapse:collapse;font-size:12.5px;margin-top:6px"><tr style="color:var(--text3);font-size:10.5px;text-transform:uppercase;letter-spacing:.5px">${_podeAtu?'<td style="padding:4px 4px;width:26px" title="Atualizar pelo e-CAC">🔄</td>':''}<td style="padding:4px 8px">Ano</td><td style="padding:4px 8px">e-CAC</td><td style="padding:4px 8px">Programa</td></tr>${arr.map(d=>`<tr>${_podeAtu?`<td style="padding:4px 4px">${d.padrao?`<input type="checkbox" class="ecac-atu" data-cid="${esc(cid)}" data-ano="${esc(d.ano)}" data-padrao="${esc(d.padrao)}" ${d.tela?'':'checked'} title="${d.tela?'Lido pela tela (reserva) — confira no e-CAC antes de marcar':''}" style="width:15px;height:15px;cursor:pointer">`:'<span title="Status do e-CAC fora das categorias — ajuste à mão" style="color:var(--text3)">—</span>'}</td>`:''}<td style="padding:4px 8px;font-weight:600">${esc(d.ano)}</td><td style="padding:4px 8px;color:var(--red)">${esc(d.ecac||'—')}${_det(d)?`<div style="font-size:11px;color:var(--text3)">${esc(_det(d))}</div>`:''}</td><td style="padding:4px 8px;color:var(--text2)">${esc(d.programa||'—')}</td></tr>`).join('')}</table>`;
+  const comAviso=x.matched.filter(m=>m.avisos&&m.avisos.length);
+  const nAtu=x.matched.reduce((n,m)=>n+(m.atualizados||[]).length,0);
+  if(nAtu)h+=`<div style="color:var(--green);margin-top:8px;font-size:12.5px">🔄 ${nAtu} exercício(s) já atualizados com o status do e-CAC (os de status antigo — Em Malha, Impugnar/Impugnação — são atualizados sozinhos ao fim da consulta, mantendo os detalhes).</div>`;
   if(comDiv.length){
     h+=`<div style="font-weight:700;color:var(--red);margin-top:8px">⚠️ Divergências (e-CAC × programa)</div>`;
     for(const m of comDiv){
-      h+=`<div style="border:1px solid rgba(220,38,38,.3);border-radius:9px;padding:10px;margin-top:6px"><div style="font-weight:700">${esc(m.c.nome)} <span style="color:var(--text3);font-weight:400;font-size:12px">${esc(m.c.cpfCnpj)}</span></div>${tbl(m.divs)}</div>`;
+      h+=`<div style="border:1px solid rgba(220,38,38,.3);border-radius:9px;padding:10px;margin-top:6px"><div style="font-weight:700">${esc(m.c.nome)} <span style="color:var(--text3);font-weight:400;font-size:12px">${esc(m.c.cpfCnpj)}</span></div>${m.r.via==='tela'?`<div style="font-size:12px;color:#b45309;margin-top:3px">🖥️ Lido pela tela (a leitura pelos dados falhou neste cliente) — o status pode estar errado; confira no e-CAC antes de atualizar.</div>`:''}${tbl(m.divs,m.c.id)}</div>`;
     }
   }else{
     h+=`<div style="color:var(--green);margin-top:8px">✅ Nenhuma divergência entre os clientes casados.</div>`;
+  }
+  if(comAviso.length){
+    h+=`<div style="font-weight:700;color:#dc2626;margin-top:12px">📢 Avisos no Meu Imposto de Renda (${comAviso.length} cliente${comAviso.length!==1?'s':''})</div>`;
+    for(const m of comAviso){
+      h+=`<div style="border:1px solid rgba(220,38,38,.3);border-radius:9px;padding:8px 10px;margin-top:6px"><div style="font-weight:700">${esc(m.c.nome)} <span style="color:var(--text3);font-weight:400;font-size:12px">${esc(m.c.cpfCnpj)}</span></div>${m.avisos.map(a=>`<div style="font-size:12.5px;color:var(--text2);margin-top:3px">📢 ${esc(_mirAvisoTxt(a))}</div>`).join('')}</div>`;
+    }
   }
   if(comOutros.length){
     h+=`<details style="margin-top:10px"><summary style="cursor:pointer;font-weight:700;color:var(--yellow)">🔎 Conferir — sem divergência de status (${comOutros.length})</summary>`;
@@ -4737,8 +4758,55 @@ function renderEcacModal(){
     h+=`<details style="margin-top:8px"><summary style="cursor:pointer;font-weight:700;color:var(--yellow)">Não encontrados no cadastro (${x.naoEncontrados.length})</summary><div style="font-size:12px;color:var(--text2);margin-top:6px">${x.naoEncontrados.map(n=>`${esc(n.nome)} (${esc(n.cpf)})`).join('<br>')}</div></details>`;
   }
   const canEdit=(typeof canEditExercicios==='function')?canEditExercicios():true;
-  h+=`<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px;border-top:1px solid var(--border);padding-top:12px">${canEdit&&x.totalDiv?`<button class="btn btn-primary" onclick="applyEcacMarks()">⚠️ Marcar ${x.totalDiv} divergência(s) com ATENÇÃO</button>`:''}<button class="btn btn-ghost" onclick="closeEcacModal()">Fechar</button></div>`;
+  h+=`<div style="font-size:11px;color:var(--text3);margin-top:10px">💾 Esta comparação fica salva no programa — você pode reabri-la depois em <strong>Consulta e-CAC › 🕘 Última comparação</strong>, mesmo sem marcar as divergências.</div>`;
+  h+=`<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px;border-top:1px solid var(--border);padding-top:12px">${canEdit&&x.totalDiv?`<button class="btn btn-primary" onclick="ecacAtualizarSelecionados()" title="Grava o status do e-CAC nos exercícios marcados 🔄, mantendo os detalhes">🔄 Atualizar status marcados pelo e-CAC</button><button class="btn btn-ghost" onclick="applyEcacMarks()">⚠️ Marcar ${x.totalDiv} divergência(s) com ATENÇÃO</button>`:''}<button class="btn btn-ghost" onclick="closeEcacModal()">Fechar</button></div>`;
   body.innerHTML=h;
+}
+// Grava o status do e-CAC no exercício, mantendo os detalhes e o histórico.
+function _ecacGravarStatus(c,ano,padrao,usuario){
+  const antes=c.exercicios?.[ano]||''; const sp=splitStatus(antes);
+  const novo=joinStatus(padrao,sp.main?sp.det:antes.trim());
+  if(novo===antes)return false;
+  if(sp.main==='IMPUGNAR'||sp.main==='IMPUGNAÇÃO'){if(!c.exMarcador)c.exMarcador={};if(!c.exMarcador[ano])c.exMarcador[ano]=sp.main==='IMPUGNAR'?'impugnar':'impugnacao';}
+  c.exercicios[ano]=novo;
+  if(!c.historico)c.historico=[];
+  c.historico.unshift({ts:new Date().toISOString(),exercicio:ano,de:antes,para:novo,usuario});
+  return true;
+}
+// Ao fim da consulta: status ANTIGO (Em Malha, Impugnar…) vira o do e-CAC sozinho.
+async function ecacAtualizarLegados(resultados){
+  const byD=new Map(allClients.map(c=>[_digits(c.cpfCnpj),c]));
+  const mud=new Set(); let n=0;
+  for(const r of (resultados||[])){
+    const c=byD.get(r.cpf_digits||_digits(r.cpf)); if(!c)continue;
+    if(r.via==='tela')continue;   // leitura de tela (reserva): nada é atualizado sozinho
+    for(const [ano,info] of Object.entries(r.exercicios||{})){
+      if(!info.divergente||!info.legado)continue;
+      const alvo=ECAC_STATUS.find(s=>s.v===info.ecacPadrao); if(!alvo)continue;
+      if(classifyStatus(c.exercicios?.[ano]||'').cls!=='reclassificar')continue;   // já mexido à mão
+      if(_ecacGravarStatus(c,ano,alvo.v,'Consulta e-CAC (automático)')){mud.add(c);n++;}
+    }
+  }
+  if(mud.size){for(const c of mud)await dbPut('clientes',c);allClients=await dbAll('clientes');allClients.sort((a,b)=>(a.nome||'').localeCompare(b.nome||'','pt-BR'));filterClients();renderFilterChips();renderSidebarStats();ghSave();}
+  return n;
+}
+async function ecacAtualizarSelecionados(){
+  if(typeof canEditExercicios==='function'&&!canEditExercicios()){showToast('Sem permissão para editar.','error');return;}
+  const marc=[...document.querySelectorAll('#ecac-modal-body input.ecac-atu:checked')];
+  if(!marc.length){showToast('Nenhum exercício marcado 🔄','error');return;}
+  if(!confirm(`Gravar o status do e-CAC em ${marc.length} exercício(s)? Os detalhes escritos são mantidos e a mudança fica no histórico (e pode ser desfeita com ↩️).`))return;
+  const mud=new Set(); let n=0;
+  for(const el of marc){
+    const c=allClients.find(x=>x.id===el.dataset.cid); if(!c)continue;
+    if(_ecacGravarStatus(c,el.dataset.ano,el.dataset.padrao,getCurrentUserName())){mud.add(c);n++;}
+  }
+  for(const c of mud)await dbPut('clientes',c);
+  allClients=await dbAll('clientes');
+  allClients.sort((a,b)=>(a.nome||'').localeCompare(b.nome||'','pt-BR'));
+  filterClients();renderFilterChips();renderSidebarStats();
+  ghSave();
+  showToast(`🔄 ${n} exercício(s) atualizados com o status do e-CAC`,'success');
+  if(_ecacCompare){const u=_ecacUltima();_ecacCompare=buildEcacCompare(u||{clientes:[]});renderEcacModal();}
 }
 async function applyEcacMarks(){
   if(!_ecacCompare)return;
@@ -4756,6 +4824,288 @@ async function applyEcacMarks(){
   ghSave();
   showToast(`✅ ${nE} exercício(s) marcados em ${nC} cliente(s)`,'success');
   closeEcacModal();
+}
+
+// ── CONSULTA e-CAC AO VIVO (servidor local, opção 2) ─────────────────────────
+const ECAC_SRV='http://localhost:8765';
+let _ecacSel=[], _ecacPoll=null, _ecacDone=null, _ecacUltEstado='';
+// Aviso sonoro quando o e-CAC trava numa mensagem importante (o usuário pode
+// estar em outra aba). Não abre nem lê nada — só chama a atenção.
+function _ecacAlerta(){
+  try{
+    const ctx=new (window.AudioContext||window.webkitAudioContext)();
+    [0,450,900].forEach(function(ms){
+      setTimeout(function(){
+        const o=ctx.createOscillator(), g=ctx.createGain();
+        o.type='sine'; o.frequency.value=880; g.gain.value=0.15;
+        o.connect(g); g.connect(ctx.destination); o.start();
+        setTimeout(function(){ o.stop(); }, 260);
+      }, ms);
+    });
+  }catch(e){}
+  try{ document.title='📨 MENSAGEM IMPORTANTE — e-CAC'; }catch(e){}
+}
+function _ecacFetch(path,opt){return fetch(ECAC_SRV+path,opt);}
+// ── Sessões simultâneas: sessão N = servidor na porta 8764+N, com o seu próprio Chrome ──
+function _ecacSrv(n){return 'http://localhost:'+(8764+n);}
+function _ecacNSess(){const v=parseInt(document.getElementById('ecac-sessoes')?.value||'1');return isNaN(v)?1:Math.max(1,Math.min(4,v));}
+let _ecacSessoes=(()=>{try{const a=JSON.parse(localStorage.getItem('cadastroIR_ecacSessoes')||'[1]');return Array.isArray(a)&&a.length?a:[1];}catch(e){return[1];}})();
+function _ecacGuardarSessoes(arr){_ecacSessoes=arr;try{localStorage.setItem('cadastroIR_ecacSessoes',JSON.stringify(arr));}catch(e){}}
+function _ecacTodos(path,opt){return Promise.all(_ecacSessoes.map(n=>fetch(_ecacSrv(n)+path,opt).catch(()=>null)));}
+function ecacSetSessoes(v){
+  try{localStorage.setItem('cadastroIR_ecacNSess',String(v));}catch(e){}
+  const n=_ecacNSess();
+  const box=document.getElementById('ecac-btns-chrome');
+  if(box)box.innerHTML=Array.from({length:n},(_,i)=>`<button class="btn btn-ghost" onclick="ecacAbrirChrome(${i+1})">🌐 Abrir Chrome${n>1?' '+(i+1):''} e logar</button>`).join('');
+  ecacPing();
+}
+async function _ecacPingSess(n){try{const r=await fetch(_ecacSrv(n)+'/ping',{cache:'no-store'});if(!r.ok)return null;return await r.json();}catch(e){return null;}}
+async function ecacPing(){
+  const badge=document.getElementById('ecac-srv-badge');
+  const off=document.getElementById('ecac-srv-off');
+  const painel=document.getElementById('ecac-painel');
+  {const sel=document.getElementById('ecac-sessoes');if(sel&&!sel.dataset.ini){sel.dataset.ini='1';const v='4';sel.value=v;ecacSetSessoes(v);return;}}
+  try{
+    const n=_ecacNSess();
+    const pings=await Promise.all(Array.from({length:n},(_,i)=>_ecacPingSess(i+1)));
+    if(!pings[0])throw 0;
+    const ok=pings.filter(Boolean).length;
+    badge.textContent=n>1?`● ${ok} de ${n} sessões conectadas`:'● servidor conectado';
+    badge.style.color=ok===n?'var(--green)':'var(--yellow)';
+    const info=document.getElementById('ecac-sess-info');
+    if(info)info.innerHTML=n>1?(ok<n?`⚠️ Sessão(ões) ${pings.map((p,i)=>p?null:i+1).filter(Boolean).join(', ')} sem servidor — feche e abra o programa pelo <code>ABRIR PROGRAMA e-CAC.bat</code> (ele liga as 4 sessões).`:`A lista de clientes será dividida em ${n} partes, uma por sessão (Chrome). Cada Chrome precisa estar logado.`):'';
+    off.style.display='none'; painel.style.display='flex';
+    ecacPreview(); ecacStatusOnce();
+  }catch(e){
+    badge.textContent='● servidor offline'; badge.style.color='var(--red)';
+    off.style.display='block'; painel.style.display='none';
+  }
+}
+async function ecacAbrirChrome(n){
+  n=n||1;
+  try{const r=await fetch(_ecacSrv(n)+'/abrir-chrome',{method:'POST'});const j=await r.json();if(j.erro)throw new Error(j.erro);showToast('Chrome aberto — faça o login e deixe a janela aberta','success');}
+  catch(e){showToast('❌ '+(e.message||'Servidor offline'),'error');}
+}
+function _ecacSemAcento(s){return String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase();}
+function _ecacTemAcesso(a){a=_ecacSemAcento(a);if(!a)return false;if(a.includes('CANCELAD')||a.includes('SEM ACESSO'))return false;if(/CERT\w*\.?\s*DIG/.test(a))return true;if(a.includes('PROCURA'))return true;return false;}
+function _ecacTemMalha(c){return Object.values(c.exercicios||{}).some(v=>{const k=classifyStatus(v).cls;return ECAC_MALHA_CLS.has(k)||(k==='reclassificar'&&_ecacSemAcento(v).includes('MALHA'));});}
+function _ecacSenhaGov(a){a=_ecacSemAcento(a);return a.includes('SENHA GOV')||a.includes('GOV.BR');}
+function _ecacTemFila(c){return Object.values(c.exercicios||{}).some(v=>{const s=_ecacSemAcento(v);return (s.includes('FILA')&&s.includes('RESTITUI'))||s.includes('EM FILA');});}
+function ecacSelecionar(){
+  const g=document.getElementById('ecac-grupo').value;
+  const nome=deacc((document.getElementById('ecac-filtro').value||'').trim());
+  let sel=allClients.filter(c=>_digits(c.cpfCnpj).length===11 && (c.tipo==='PF'||!c.tipo));
+  if(g==='acesso'||g==='acesso_malha'||g==='acesso_fila')sel=sel.filter(c=>_ecacTemAcesso(c.acessoEcac));
+  if(g==='malha'||g==='acesso_malha')sel=sel.filter(_ecacTemMalha);
+  if(g==='fila'||g==='acesso_fila')sel=sel.filter(_ecacTemFila);
+  if(g==='senha_gov')sel=sel.filter(c=>_ecacSenhaGov(c.acessoEcac));
+  if(g==='sem_acesso')sel=sel.filter(c=>!_ecacTemAcesso(c.acessoEcac)&&!_ecacSenhaGov(c.acessoEcac));
+  if(nome)sel=sel.filter(c=>deacc(c.nome).includes(nome));
+  sel.sort((a,b)=>(a.nome||'').localeCompare(b.nome||'','pt-BR'));
+  const de=(document.getElementById('ecac-comecar')?.value||'').trim();
+  if(de){
+    const ded=_digits(de), del=deacc(de);
+    const idx=sel.findIndex(c=>(ded&&_digits(c.cpfCnpj).includes(ded))||(del&&deacc(c.nome).includes(del)));
+    if(idx>=0)sel=sel.slice(idx);
+  }
+  return sel;
+}
+function ecacPreview(){
+  _ecacSel=ecacSelecionar();
+  const el=document.getElementById('ecac-preview'); if(!el)return;
+  const amostra=_ecacSel.slice(0,8).map(c=>c.nome).join(', ');
+  const modo=document.getElementById('ecac-modo')?.value||'declaracoes';
+  const semEx=_ecacSel.filter(c=>!Object.keys(c.exercicios||{}).length).length;
+  const obsModo=modo==='declaracoes'&&semEx?` <span style="color:var(--text3)">(${semEx} sem exercício no programa serão pulados)</span>`:(modo==='ambos'&&semEx?` <span style="color:var(--text3)">(${semEx} sem exercício: só processos)</span>`:'');
+  el.innerHTML=`<strong>${_ecacSel.length}</strong> cliente(s) selecionado(s)${obsModo}${_ecacSel.length?': '+esc(amostra)+(_ecacSel.length>8?'…':''):''}`;
+}
+async function ecacIniciar(){
+  if(!_ecacSel.length){showToast('Nenhum cliente selecionado','error');return;}
+  const nSess=Math.min(_ecacNSess(),_ecacSel.length);
+  const clientes=_ecacSel.map(c=>({nome:c.nome,cpf:_digits(c.cpfCnpj),cpf_fmt:c.cpfCnpj,exercicios:c.exercicios||{}}));
+  const delay=parseFloat(document.getElementById('ecac-delay').value)||0;
+  const tentativas=parseInt(document.getElementById('ecac-tent').value)||1;
+  try{
+    const modo=document.getElementById('ecac-modo')?.value||'declaracoes';
+    const retratos={};
+    if(modo!=='declaracoes')_ecacSel.forEach(c=>{if(c.eproc&&c.eproc.retrato)retratos[_digits(c.cpfCnpj)]=c.eproc.retrato;});
+    if(modo!=='declaracoes'){
+      const pg=await fetch(ECAC_SRV+'/ping',{cache:'no-store'}).then(r=>r.json()).catch(()=>({}));
+      if(!pg.eprocesso)throw new Error('O servidor de consulta está desatualizado — feche a janela do servidor e abra de novo (ABRIR PROGRAMA e-CAC.bat).');
+    }
+    // divide a lista (em ordem) entre as sessões — cada uma no seu Chrome
+    const pings=await Promise.all(Array.from({length:nSess},(_,i)=>_ecacPingSess(i+1)));
+    const falt=pings.map((p,i)=>p?null:i+1).filter(Boolean);
+    if(falt.length)throw new Error('Sessão(ões) '+falt.join(', ')+' sem servidor — abra pelo ABRIR PROGRAMA e-CAC.bat');
+    if(nSess>1&&pings.some(p=>!p.sessao))throw new Error('Servidor desatualizado — feche as janelas dos servidores e abra de novo pelo ABRIR PROGRAMA e-CAC.bat');
+    const partes=[]; const tam=Math.ceil(clientes.length/nSess);
+    for(let i=0;i<nSess;i++)partes.push(clientes.slice(i*tam,(i+1)*tam));
+    const usadas=[];
+    for(let i=0;i<nSess;i++){
+      if(!partes[i].length)continue;
+      const ret={}; partes[i].forEach(c=>{if(retratos[c.cpf])ret[c.cpf]=retratos[c.cpf];});
+      const r=await fetch(_ecacSrv(i+1)+'/iniciar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({clientes:partes[i],delay,tentativas,modo,retratos:ret})});
+      const js=await r.json(); if(js.erro)throw new Error((nSess>1?'Sessão '+(i+1)+': ':'')+js.erro);
+      usadas.push(i+1);
+    }
+    _ecacGuardarSessoes(usadas);
+    if(usadas.length>1)showToast(`▶️ ${usadas.length} sessões em paralelo: ${partes.filter(p=>p.length).map((p,i)=>'S'+(i+1)+' = '+p.length).join(' · ')} clientes`,'success');
+    try{localStorage.removeItem('cadastroIR_eprocJob');localStorage.removeItem('cadastroIR_mirJob');localStorage.removeItem('cadastroIR_stJob');}catch(e){}
+    _ecacDone=null;
+    document.getElementById('ecac-prog-wrap').style.display='block';
+    document.getElementById('ecac-btn-result').style.display='none';
+    _ecacRunBtns(true); ecacStartPoll();
+  }catch(e){showToast('❌ '+(e.message||'Servidor offline'),'error');}
+}
+function _ecacRunBtns(running){
+  document.getElementById('ecac-btn-iniciar').style.display=running?'none':'inline-flex';
+  document.getElementById('ecac-btn-pausar').style.display=running?'inline-flex':'none';
+  document.getElementById('ecac-btn-parar').style.display=running?'inline-flex':'none';
+}
+function ecacStartPoll(){clearInterval(_ecacPoll);_ecacPoll=setInterval(ecacStatusOnce,1000);ecacStatusOnce();}
+const _ECAC_VIVOS=['rodando','pausado','aguardando_relogin','aguardando_rede','reconectando','aguardando_login'];
+// Junta o /status de todas as sessões da consulta num só (mesmo formato de antes)
+function _ecacCombinar(outs){
+  const v=outs.map((js,i)=>({n:_ecacSessoes[i],js})).filter(x=>x.js&&x.js.estado&&x.js.estado!=='idle');
+  if(!v.length)return null;
+  if(v.length===1&&_ecacSessoes.length===1)return v[0].js;
+  const est=v.map(x=>x.js.estado);
+  let estado;
+  if(est.some(e=>_ECAC_VIVOS.includes(e))){
+    estado=est.includes('aguardando_relogin')?'aguardando_relogin':(est.filter(e=>_ECAC_VIVOS.includes(e)).every(e=>e==='pausado')?'pausado':'rodando');
+  }else estado=est.includes('erro')?'erro':'concluido';
+  const soma=k=>v.reduce((s,x)=>s+(+x.js[k]||0),0);
+  const cat=k=>v.flatMap(x=>Array.isArray(x.js[k])?x.js[k]:[]);
+  return {
+    estado, idx:soma('idx'), total:soma('total'), totalDiv:soma('totalDiv'), totalNov:soma('totalNov'),
+    atual:v.map(x=>`S${x.n}: ${x.js.estado==='concluido'?'✓ concluída':(x.js.atual||x.js.estado)}`).join('  |  '),
+    log:v.flatMap(x=>[`══════ SESSÃO ${x.n} (${x.js.idx}/${x.js.total}) ══════`,...(x.js.log||[]).slice(-300),'']),
+    resultados:cat('resultados'), processos:cat('processos'),
+    gerado_em:v.map(x=>x.js.gerado_em||'').sort().pop()||'',
+    erro:v.filter(x=>x.js.estado==='erro').map(x=>`Sessão ${x.n}: ${x.js.erro||'erro'}${x.js.proximo?' (parou em '+x.js.proximo+')':''}`).join(' · '),
+    proximo:'', modo:v[0].js.modo
+  };
+}
+async function ecacStatusOnce(){
+  let js;
+  try{js=_ecacCombinar(await Promise.all(_ecacSessoes.map(n=>fetch(_ecacSrv(n)+'/status',{cache:'no-store'}).then(r=>r.json()).catch(()=>null))));}catch(e){return;}
+  if(!js)return;
+  if(!js||js.estado==='idle')return;
+  const bar=document.getElementById('ecac-prog-bar');
+  const txt=document.getElementById('ecac-prog-txt');
+  const logEl=document.getElementById('ecac-log');
+  if(js.total){bar.style.width=Math.round((js.idx/js.total)*100)+'%';}
+  txt.textContent=`${js.estado} · ${js.idx}/${js.total}${js.atual?(' · '+js.atual):''}`;
+  if(Array.isArray(js.log)){logEl.textContent=js.log.join('\n');logEl.scrollTop=logEl.scrollHeight;}
+  document.getElementById('ecac-btn-continuar').style.display=(js.estado==='aguardando_relogin')?'inline-flex':'none';
+  if(js.estado==='aguardando_relogin'&&_ecacUltEstado!=='aguardando_relogin'){
+    _ecacAlerta();
+    showToast('📨 MENSAGEM IMPORTANTE no e-CAC'+(_ecacSessoes.length>1?' ('+(String(js.atual||'').split('|').find(t=>t.includes('📨'))||'').trim().split(':')[0]+')':'')+' — verifique manualmente, FECHE e reabra esse Chrome, logue e clique "Continuar"','error');
+  }
+  _ecacUltEstado=js.estado;
+  if(['rodando','pausado','aguardando_relogin','aguardando_rede','reconectando','aguardando_login'].includes(js.estado)){
+    document.getElementById('ecac-prog-wrap').style.display='block'; _ecacRunBtns(true);
+  }
+  if(js.estado==='concluido'||js.estado==='erro'){
+    clearInterval(_ecacPoll);_ecacPoll=null; _ecacRunBtns(false);
+    const b=document.getElementById('ecac-btn-pausar'); if(b){b.textContent='⏸ Pausar';b.dataset.paused='';}
+    const parciais=Array.isArray(js.resultados)?js.resultados:[];
+    const procs=Array.isArray(js.processos)?js.processos:[];
+    if(procs.length){
+      // grava no cadastro uma única vez por consulta (o status pode ser relido ao reabrir a tela)
+      const jobKey=(js.gerado_em||'')+'|'+procs.length;
+      let ja=''; try{ja=localStorage.getItem('cadastroIR_eprocJob')||'';}catch(e){}
+      if(ja!==jobKey){
+        const a=await eprocAplicar(procs);
+        try{localStorage.setItem('cadastroIR_eprocJob',jobKey);}catch(e){}
+        showToast(`📂 Processos: ${a.nL} cliente(s) atualizados · 🔔 ${a.nN} novidade(s)${a.nF?` · ⚠️ ${a.nF} falha(s)`:''} — veja em Processos e-CAC`,a.nN?'success':'success');
+      }
+      const bp=document.getElementById('ecac-btn-procs'); if(bp)bp.style.display='inline-flex';
+    }
+    if(parciais.length){
+      const k3=(js.gerado_em||'')+'|'+parciais.length;
+      let ja3=''; try{ja3=localStorage.getItem('cadastroIR_stJob')||'';}catch(e){}
+      if(ja3!==k3){
+        const n=await ecacAtualizarLegados(parciais);
+        try{localStorage.setItem('cadastroIR_stJob',k3);}catch(e){}
+        if(n)showToast(`🔄 ${n} exercício(s) de status antigo (Em Malha/Impugnação) atualizados pelo e-CAC`,'success');
+      }
+    }
+    if(parciais.some(r=>r&&r.mir)){
+      const k2=(js.gerado_em||'')+'|'+parciais.length;
+      let ja2=''; try{ja2=localStorage.getItem('cadastroIR_mirJob')||'';}catch(e){}
+      if(ja2!==k2){
+        const a=await mirAplicar(parciais);
+        try{localStorage.setItem('cadastroIR_mirJob',k2);}catch(e){}
+        if(a.nAv)showToast(`📢 ${a.nAv} aviso(s) novo(s) no Meu Imposto de Renda — veja em Processos e-CAC`,'success');
+      }
+    }
+    if(js.estado==='erro'){
+      // A verificação parou no meio (ex.: internet caiu). Não perde o que já foi lido:
+      // mostra os parciais e deixa preenchido o cliente por onde recomeçar.
+      showToast('❌ '+(js.erro||'Erro'),'error');
+      if(js.proximo){
+        const inp=document.getElementById('ecac-comecar');
+        if(inp){inp.value=js.proximo; ecacPreview();}
+      }
+      if(parciais.length){
+        _ecacDone=js;
+        document.getElementById('ecac-btn-result').style.display='inline-flex';
+        showToast(`💾 ${parciais.length} cliente(s) já verificados foram preservados — clique em 'Ver resultado'`,'success');
+      }
+      return;
+    }
+    _ecacDone=js;
+    if(parciais.length){
+      document.getElementById('ecac-btn-result').style.display='inline-flex';
+      showToast(`✅ Concluído: ${js.resultados.length} cliente(s), ${js.totalDiv} divergência(s)`,'success');
+      ecacAbrirResultado();
+    }else if(procs.length){
+      showToast('✅ Consulta de processos concluída','success');
+    }
+  }
+}
+function ecacPausar(){
+  const b=document.getElementById('ecac-btn-pausar');
+  if(b.dataset.paused==='1'){
+    // Envia a pausa e as tentativas ATUAIS dos campos: se foram alteradas durante
+    // a pausa, passam a valer a partir do próximo cliente.
+    const delay=parseFloat(document.getElementById('ecac-delay').value);
+    const tentativas=parseInt(document.getElementById('ecac-tent').value);
+    _ecacTodos('/retomar',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({delay:isNaN(delay)?null:delay,tentativas:isNaN(tentativas)?null:tentativas})});
+    b.textContent='⏸ Pausar';b.dataset.paused='';
+    showToast('Retomando — reconferindo a conexão com o Chrome…','success');
+  }
+  else{_ecacTodos('/pausar',{method:'POST'});b.textContent='▶️ Retomar';b.dataset.paused='1';}
+}
+function ecacParar(){_ecacTodos('/parar',{method:'POST'});showToast('Parando após o cliente atual…','success');}
+function ecacContinuar(){_ecacTodos('/continuar',{method:'POST'});document.getElementById('ecac-btn-continuar').style.display='none';}
+function _ecacUltima(){try{const s=localStorage.getItem('cadastroIR_ecacUltima');return s?JSON.parse(s):null;}catch(e){return null;}}
+function _ecacSaveUltima(data){
+  try{localStorage.setItem('cadastroIR_ecacUltima',JSON.stringify({fonte:'consulta_ecac',gerado_em:data.gerado_em||new Date().toLocaleString('pt-BR'),clientes:data.clientes||[]}));}
+  catch(e){showToast('Não consegui salvar a comparação localmente (tamanho excedido).','error');}
+  _ecacRefreshUltimaBtns();
+}
+function _ecacRefreshUltimaBtns(){
+  const u=_ecacUltima();
+  const lbl=u?('🕘 Última comparação'+(u.gerado_em?(' ('+u.gerado_em+')'):'')):'';
+  ['ecac-btn-ultima','ecac-btn-ultima2'].forEach(id=>{const b=document.getElementById(id);if(b){b.style.display=u?'inline-flex':'none';if(u)b.textContent=lbl;}});
+}
+function ecacVerUltima(){
+  const u=_ecacUltima();
+  if(!u){showToast('Nenhuma comparação salva ainda.','error');return;}
+  _ecacCompare=buildEcacCompare(u);
+  renderEcacModal();
+  document.getElementById('modal-ecac').style.display='flex';
+}
+function ecacAbrirResultado(){
+  if(!_ecacDone||!Array.isArray(_ecacDone.resultados))return;
+  const _d={fonte:'consulta_ecac',gerado_em:_ecacDone.gerado_em,clientes:_ecacDone.resultados};
+  _ecacCompare=buildEcacCompare(_d);
+  _ecacSaveUltima(_d);
+  renderEcacModal();
+  document.getElementById('modal-ecac').style.display='flex';
 }
 
 // ── 📂 PROCESSOS e-CAC (e-Processo) ──────────────────────────────────────────
@@ -5167,73 +5517,6 @@ window.addEventListener('beforeunload',e=>{
 });
 
 init();
-
-// ── SINCRONIZAÇÃO DE DADOS ────────────────────────────────────────────────────
-// Busca dados frescos do GitHub, limpa o cache IndexedDB e atualiza a UI.
-let _syncBusy = false;
-async function syncDados(silencioso=false){
-  if(_syncBusy) return;
-  _syncBusy = true;
-  const btn = document.getElementById('btn-sync');
-  if(btn){ btn.textContent='⏳ Sincronizando…'; btn.disabled=true; }
-  try{
-    const ghData = await ghFetch();
-    if(ghData){
-      allClients = ghData.clientes||[];
-      allLotes   = ghData.lotes||[];
-      // Atualiza IndexedDB com os dados frescos
-      try{
-        for(const c of allClients) await dbPut('clientes',c);
-        for(const l of allLotes)   await dbPut('lotes',l);
-      }catch(e){}
-      if(Array.isArray(ghData.access)&&ghData.access.length>0) accessList=ghData.access;
-      allClients.sort((a,b)=>(a.nome||'').localeCompare(b.nome||'','pt-BR'));
-      allLotes.sort((a,b)=>{const pd=s=>{const[d,m,y]=(s||'').split('/');return new Date(y,m-1,d)};return pd(b.data)-pd(a.data);});
-      refreshCurrentView();
-      if(!silencioso) showToast('✅ Dados atualizados!','success');
-    } else {
-      const detalhe=_ghLastError?` (${_ghLastError})`:'';
-      if(!silencioso) showToast(`⚠️ Não foi possível carregar os dados${detalhe}`,'error');
-    }
-  }catch(e){
-    if(!silencioso) showToast('⚠️ Erro ao sincronizar: '+e.message,'error');
-  }finally{
-    _syncBusy = false;
-    if(btn){ btn.textContent='🔄 Sincronizar'; btn.disabled=false; }
-  }
-}
-// Auto-refresh silencioso a cada 10 minutos enquanto a aba estiver aberta
-setInterval(()=>syncDados(true), 10 * 60 * 1000);
-
-// ── AUTO-ATUALIZAÇÃO: detecta nova versão do viewer.html no GitHub ─────────────
-// Compara o SHA do arquivo no GitHub com o SHA que estava no momento do carregamento.
-// Se mudou, exibe o banner pedindo para recarregar.
-let _viewerSHA = null;
-async function checkViewerVersion(){
-  try{
-    if(!ghCfg?.owner||!ghCfg?.repo) return;
-    const headers={'Accept':'application/vnd.github.v3+json'};
-    const vToken=ghCfg?.token||ghCfg?.readToken||ghCfg?.writeToken||null;
-    if(vToken) headers['Authorization']=`token ${vToken}`;
-    const r = await fetch(
-      `https://api.github.com/repos/${ghCfg.owner}/${ghCfg.repo}/contents/viewer.html`,
-      {cache:'no-store', headers}
-    );
-    if(!r.ok) return;
-    const j = await r.json();
-    if(!j.sha) return;
-    if(_viewerSHA === null){
-      _viewerSHA = j.sha; // SHA da versão que o navegador carregou
-    } else if(j.sha !== _viewerSHA){
-      // SHA mudou → nova versão publicada no GitHub
-      const banner = document.getElementById('update-banner');
-      if(banner) banner.style.display = 'flex';
-    }
-  }catch(e){}
-}
-// Primeira verificação após 6s (deixa o init terminar) e depois a cada 5 minutos
-setTimeout(checkViewerVersion, 6000);
-setInterval(checkViewerVersion, 5 * 60 * 1000);
 
 // ── Garante busca via eventos E polling (fallback robusto para file://) ────────
 (()=>{
@@ -5839,8 +6122,9 @@ function imprimirLotesView(){
   allClients.forEach(c=>{dgMap[c.cpfCnpj]=!!c.doencaGrave;});
   const temDG=cpf=>!!dgMap[cpf];
   allLotes.forEach((l,idx)=>{
+    // Verifica se este lote está visível no DOM (renderLotes pode ter excluído lotes sem DG)
     const pagsVisiveis=lotesFiltroDG?(l.pagamentos||[]).filter(p=>temDG(p.cpfCnpj)):(l.pagamentos||[]);
-    if(lotesFiltroDG&&pagsVisiveis.length===0)return;
+    if(lotesFiltroDG&&pagsVisiveis.length===0)return; // lote não aparece no DOM filtrado
     const body=document.getElementById('lote-body-'+idx);
     const hd=document.getElementById('lote-hd-'+idx);
     const chev=document.getElementById('lote-chev-'+idx);
@@ -5871,9 +6155,10 @@ function imprimirLotesView(){
       botBtn.classList.toggle('visible',scrollable&&!atBot);
     }
     content.addEventListener('scroll',update,{passive:true});
-    // subtree:true garante que mudanças de view disparam update
+    // subtree:true garante que mudanças de view (abertura de detalhe etc.) disparam update
     const mo=new MutationObserver(()=>setTimeout(update,80));
     mo.observe(content,{childList:true,subtree:true});
+    // ResizeObserver cobre redimensionamento de janela
     if(window.ResizeObserver){new ResizeObserver(()=>setTimeout(update,80)).observe(content);}
     setTimeout(update,400);
   }
