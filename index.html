@@ -717,6 +717,7 @@ body.exercicios-level .full-edit-only{display:none!important}
                   <option value="1">1 sessão (normal)</option>
                   <option value="2">2 sessões</option>
                   <option value="3">3 sessões</option>
+                  <option value="4" selected>4 sessões</option>
                 </select></div>
               <div id="ecac-btns-chrome" style="display:flex;gap:8px;flex-wrap:wrap"></div>
             </div>
@@ -729,7 +730,7 @@ body.exercicios-level .full-edit-only{display:none!important}
                 <select id="ecac-modo" onchange="ecacPreview()">
                   <option value="declaracoes">📄 Declarações (Meu Imposto de Renda)</option>
                   <option value="processos">📂 Processos (e-Processo)</option>
-                  <option value="ambos">📄 + 📂 Declarações e Processos</option>
+                  <option value="ambos" selected>📄 + 📂 Declarações e Processos</option>
                 </select></div>
               <div class="form-group" style="min-width:240px"><label>Grupo</label>
                 <select id="ecac-grupo" onchange="ecacPreview()">
@@ -747,9 +748,9 @@ body.exercicios-level .full-edit-only{display:none!important}
               <div class="form-group" style="min-width:200px"><label>Começar a partir de (nome ou CPF)</label>
                 <input type="text" id="ecac-comecar" oninput="ecacPreview()" placeholder="retomar de um cliente"></div>
               <div class="form-group" style="width:110px"><label>Pausa (s)</label>
-                <input type="number" id="ecac-delay" value="4" min="0" max="30"></div>
+                <input type="number" id="ecac-delay" value="1" min="0" max="30"></div>
               <div class="form-group" style="width:110px"><label>Tentativas</label>
-                <input type="number" id="ecac-tent" value="4" min="1" max="8"></div>
+                <input type="number" id="ecac-tent" value="2" min="1" max="8"></div>
             </div>
             <div id="ecac-preview" style="font-size:12.5px;color:var(--text2);margin-top:8px"></div>
           </div>
@@ -4847,7 +4848,7 @@ function _ecacAlerta(){
 function _ecacFetch(path,opt){return fetch(ECAC_SRV+path,opt);}
 // ── Sessões simultâneas: sessão N = servidor na porta 8764+N, com o seu próprio Chrome ──
 function _ecacSrv(n){return 'http://localhost:'+(8764+n);}
-function _ecacNSess(){const v=parseInt(document.getElementById('ecac-sessoes')?.value||'1');return isNaN(v)?1:Math.max(1,Math.min(3,v));}
+function _ecacNSess(){const v=parseInt(document.getElementById('ecac-sessoes')?.value||'1');return isNaN(v)?1:Math.max(1,Math.min(4,v));}
 let _ecacSessoes=(()=>{try{const a=JSON.parse(localStorage.getItem('cadastroIR_ecacSessoes')||'[1]');return Array.isArray(a)&&a.length?a:[1];}catch(e){return[1];}})();
 function _ecacGuardarSessoes(arr){_ecacSessoes=arr;try{localStorage.setItem('cadastroIR_ecacSessoes',JSON.stringify(arr));}catch(e){}}
 function _ecacTodos(path,opt){return Promise.all(_ecacSessoes.map(n=>fetch(_ecacSrv(n)+path,opt).catch(()=>null)));}
@@ -4863,7 +4864,7 @@ async function ecacPing(){
   const badge=document.getElementById('ecac-srv-badge');
   const off=document.getElementById('ecac-srv-off');
   const painel=document.getElementById('ecac-painel');
-  {const sel=document.getElementById('ecac-sessoes');if(sel&&!sel.dataset.ini){sel.dataset.ini='1';let v='1';try{v=localStorage.getItem('cadastroIR_ecacNSess')||'1';}catch(e){}sel.value=v;ecacSetSessoes(v);return;}}
+  {const sel=document.getElementById('ecac-sessoes');if(sel&&!sel.dataset.ini){sel.dataset.ini='1';const v='4';sel.value=v;ecacSetSessoes(v);return;}}
   try{
     const n=_ecacNSess();
     const pings=await Promise.all(Array.from({length:n},(_,i)=>_ecacPingSess(i+1)));
@@ -4872,7 +4873,7 @@ async function ecacPing(){
     badge.textContent=n>1?`● ${ok} de ${n} sessões conectadas`:'● servidor conectado';
     badge.style.color=ok===n?'var(--green)':'var(--yellow)';
     const info=document.getElementById('ecac-sess-info');
-    if(info)info.innerHTML=n>1?(ok<n?`⚠️ Sessão(ões) ${pings.map((p,i)=>p?null:i+1).filter(Boolean).join(', ')} sem servidor — feche e abra o programa pelo <code>ABRIR PROGRAMA e-CAC.bat</code> (ele liga as 3 sessões).`:`A lista de clientes será dividida em ${n} partes, uma por sessão (Chrome). Cada Chrome precisa estar logado.`):'';
+    if(info)info.innerHTML=n>1?(ok<n?`⚠️ Sessão(ões) ${pings.map((p,i)=>p?null:i+1).filter(Boolean).join(', ')} sem servidor — feche e abra o programa pelo <code>ABRIR PROGRAMA e-CAC.bat</code> (ele liga as 4 sessões).`:`A lista de clientes será dividida em ${n} partes, uma por sessão (Chrome). Cada Chrome precisa estar logado.`):'';
     off.style.display='none'; painel.style.display='flex';
     ecacPreview(); ecacStatusOnce();
   }catch(e){
