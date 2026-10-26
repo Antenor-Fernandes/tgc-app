@@ -764,6 +764,7 @@ body.exercicios-level .full-edit-only{display:none!important}
               <button class="btn btn-primary" id="ecac-btn-result" onclick="ecacAbrirResultado()" style="display:none">📊 Ver comparação</button>
               <button class="btn btn-ghost" id="ecac-btn-ultima" onclick="ecacVerUltima()" style="display:none">🕘 Última comparação</button>
               <button class="btn btn-primary" id="ecac-btn-procs" onclick="showView('processos')" style="display:none">📂 Ver processos</button>
+              <button class="btn btn-ghost" id="ecac-btn-recuperar" onclick="ecacRecuperar()" title="Traz o resultado gravado pelos servidores — use se as janelas foram fechadas antes de o programa receber o resultado">♻️ Recuperar última consulta</button>
             </div>
             <div id="ecac-prog-wrap" style="display:none;margin-top:12px">
               <div style="height:8px;background:var(--surface2);border-radius:6px;overflow:hidden"><div id="ecac-prog-bar" style="height:100%;width:0;background:var(--accent);transition:width .3s"></div></div>
@@ -4938,8 +4939,9 @@ async function ecacIniciar(){
     const falt=pings.map((p,i)=>p?null:i+1).filter(Boolean);
     if(falt.length)throw new Error('Sessão(ões) '+falt.join(', ')+' sem servidor — abra pelo ABRIR PROGRAMA e-CAC.bat');
     if(nSess>1&&pings.some(p=>!p.sessao))throw new Error('Servidor desatualizado — feche as janelas dos servidores e abra de novo pelo ABRIR PROGRAMA e-CAC.bat');
-    const partes=[]; const tam=Math.ceil(clientes.length/nSess);
-    for(let i=0;i<nSess;i++)partes.push(clientes.slice(i*tam,(i+1)*tam));
+    // divisão equilibrada: as partes diferem em no máximo 1 cliente (ex.: 905 → 227/226/226/226)
+    const partes=[]; const base=Math.floor(clientes.length/nSess), resto=clientes.length%nSess; let ini=0;
+    for(let i=0;i<nSess;i++){const t=base+(i<resto?1:0);partes.push(clientes.slice(ini,ini+t));ini+=t;}
     const usadas=[];
     for(let i=0;i<nSess;i++){
       if(!partes[i].length)continue;
@@ -4964,11 +4966,41 @@ function _ecacRunBtns(running){
 }
 function ecacStartPoll(){clearInterval(_ecacPoll);_ecacPoll=setInterval(ecacStatusOnce,1000);ecacStatusOnce();}
 const _ECAC_VIVOS=['rodando','pausado','aguardando_relogin','aguardando_rede','reconectando','aguardando_login'];
+// ♻️ Recupera a última consulta a partir do que cada servidor gravou em disco
+// (_parcial_ecac*.json) — para quando as janelas foram fechadas antes de o
+// programa receber o resultado. Segue o mesmo caminho do fim de uma consulta.
+async function ecacRecuperar(){
+  const ns=[1,2,3,4];
+  const outs=await Promise.all(ns.map(n=>fetch(_ecacSrv(n)+'/parcial',{cache:'no-store'}).then(r=>r.json()).catch(()=>null)));
+  const vivos=ns.map((n,i)=>({n,js:outs[i]})).filter(x=>x.js&&!x.js.vazio&&((x.js.resultados||[]).length||(x.js.processos||[]).length));
+  if(!vivos.length){showToast('Nada para recuperar — abra os servidores pelo ABRIR PROGRAMA e-CAC.bat e tente de novo.','error');return;}
+  // só junta sessões gravadas na mesma consulta (até 3 h da mais recente)
+  const t=x=>Date.parse(String(x.js.gerado_em||'').replace(' ','T'))||0;
+  const max=Math.max(...vivos.map(t));
+  const ok=vivos.filter(x=>max-t(x)<3*3600e3);
+  const resumo=ok.map(x=>`S${x.n}: ${x.js.idx||0}/${x.js.total||0}`).join(' · ');
+  if(!confirm(`Recuperar a consulta gravada em ${ok.map(x=>x.js.gerado_em).sort().pop()}?
+
+${resumo}
+
+Os resultados serão gravados no cadastro como no fim de uma consulta normal (comparação, processos, avisos do MIR).`))return;
+  const comp=ok.map(x=>Object.assign({},x.js,{estado:/conclu/i.test(x.js.atual||'')&&+x.js.idx>=+x.js.total?'concluido':'erro',
+    erro:'consulta interrompida (recuperada do arquivo)',log:[]}));
+  const js=_ecacCombinar(comp,ok.map(x=>x.n));
+  if(!js){showToast('Nada para recuperar.','error');return;}
+  if(js.estado!=='concluido')js.erro='Recuperado: '+resumo+' — as sessões que não chegaram ao fim ficaram incompletas';
+  js.gerado_em=js.gerado_em||new Date().toLocaleString('pt-BR');
+  document.getElementById('ecac-prog-wrap').style.display='block';
+  window._ecacRecup=js;
+  await ecacStatusOnce();
+  showToast('♻️ Consulta recuperada: '+resumo,'success');
+}
 // Junta o /status de todas as sessões da consulta num só (mesmo formato de antes)
-function _ecacCombinar(outs){
-  const v=outs.map((js,i)=>({n:_ecacSessoes[i],js})).filter(x=>x.js&&x.js.estado&&x.js.estado!=='idle');
+function _ecacCombinar(outs,sess){
+  sess=sess||_ecacSessoes;
+  const v=outs.map((js,i)=>({n:sess[i],js})).filter(x=>x.js&&x.js.estado&&x.js.estado!=='idle');
   if(!v.length)return null;
-  if(v.length===1&&_ecacSessoes.length===1)return v[0].js;
+  if(v.length===1&&sess.length===1)return v[0].js;
   const est=v.map(x=>x.js.estado);
   let estado;
   if(est.some(e=>_ECAC_VIVOS.includes(e))){
@@ -4988,7 +5020,8 @@ function _ecacCombinar(outs){
 }
 async function ecacStatusOnce(){
   let js;
-  try{js=_ecacCombinar(await Promise.all(_ecacSessoes.map(n=>fetch(_ecacSrv(n)+'/status',{cache:'no-store'}).then(r=>r.json()).catch(()=>null))));}catch(e){return;}
+  if(window._ecacRecup){js=window._ecacRecup;window._ecacRecup=null;}
+  else try{js=_ecacCombinar(await Promise.all(_ecacSessoes.map(n=>fetch(_ecacSrv(n)+'/status',{cache:'no-store'}).then(r=>r.json()).catch(()=>null))));}catch(e){return;}
   if(!js)return;
   if(!js||js.estado==='idle')return;
   const bar=document.getElementById('ecac-prog-bar');
@@ -5005,6 +5038,8 @@ async function ecacStatusOnce(){
   _ecacUltEstado=js.estado;
   if(['rodando','pausado','aguardando_relogin','aguardando_rede','reconectando','aguardando_login'].includes(js.estado)){
     document.getElementById('ecac-prog-wrap').style.display='block'; _ecacRunBtns(true);
+    // página reaberta no meio da consulta: volta a acompanhar ao vivo (senão a tela congela e o 'Continuar' nunca aparece)
+    if(!_ecacPoll)ecacStartPoll();
   }
   if(js.estado==='concluido'||js.estado==='erro'){
     clearInterval(_ecacPoll);_ecacPoll=null; _ecacRunBtns(false);
