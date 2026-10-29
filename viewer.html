@@ -125,6 +125,10 @@ td{padding:10px 14px;font-size:13px}
 .dot-intimacao{background:#be123c}
 .dot-analise{background:#ea580c}
 .dot-reclassificar{background:#94a3b8}
+.badge-aguardproc{background:rgba(202,138,4,.13);color:#ca8a04}
+.badge-naoentregue{background:rgba(107,114,128,.14);color:#6b7280;border:1px solid rgba(107,114,128,.35)}
+.dot-aguardproc{background:#ca8a04}
+.dot-naoentregue{background:#6b7280}
 .status-dots{display:inline-flex;align-items:center;gap:2px;margin-right:6px;vertical-align:middle}
 /* MODAL */
 .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:100;display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(3px)}
@@ -380,6 +384,7 @@ body.exercicios-level .full-edit-only{display:none!important}
     <button class="nav-item" onclick="showDecl('reclassificar')" id="nav-reclassificar"><span class="nav-icon"><span class="status-dot dot-reclassificar" style="width:8px;height:8px"></span></span>A reclassificar<span class="nav-count" id="navcount-reclassificar"></span></button>
     <div class="nav-section-label" style="padding:10px 8px 3px">Acompanhamento (status e-CAC)</div>
     <button class="nav-item" onclick="showDecl('recepcionada')" id="nav-recepcionada"><span class="nav-icon"><span class="status-dot dot-recepcionada" style="width:8px;height:8px"></span></span>Recepcionada<span class="nav-count" id="navcount-recepcionada"></span></button>
+    <button class="nav-item" onclick="showDecl('aguardproc')" id="nav-aguardproc"><span class="nav-icon"><span class="status-dot dot-aguardproc" style="width:8px;height:8px"></span></span>Aguardando Processamento<span class="nav-count" id="navcount-aguardproc"></span></button>
     <button class="nav-item" onclick="showDecl('processamento')" id="nav-processamento"><span class="nav-icon"><span class="status-dot dot-processamento" style="width:8px;height:8px"></span></span>Em Processamento<span class="nav-count" id="navcount-processamento"></span></button>
     <button class="nav-item" onclick="showDecl('processada')" id="nav-processada"><span class="nav-icon"><span class="status-dot dot-processada" style="width:8px;height:8px"></span></span>Processada<span class="nav-count" id="navcount-processada"></span></button>
     <button class="nav-item" onclick="showDecl('fila')" id="nav-fila"><span class="nav-icon"><span class="status-dot dot-fila" style="width:8px;height:8px"></span></span>Em Fila de Restituição<span class="nav-count" id="navcount-fila"></span></button>
@@ -389,6 +394,7 @@ body.exercicios-level .full-edit-only{display:none!important}
     <button class="nav-item" onclick="showDecl('analise')" id="nav-analise"><span class="nav-icon"><span class="status-dot dot-analise" style="width:8px;height:8px"></span></span>Aguardando Análise de Documentos<span class="nav-count" id="navcount-analise"></span></button>
     <button class="nav-item" onclick="showDecl('tmanual')" id="nav-tmanual"><span class="nav-icon"><span class="status-dot dot-tmanual" style="width:8px;height:8px"></span></span>Em Tratamento Manual<span class="nav-count" id="navcount-tmanual"></span></button>
     <button class="nav-item" onclick="showDecl('reprocessamento')" id="nav-reprocessamento"><span class="nav-icon"><span class="status-dot dot-reprocessamento" style="width:8px;height:8px"></span></span>Em Reprocessamento<span class="nav-count" id="navcount-reprocessamento"></span></button>
+    <button class="nav-item" onclick="showDecl('naoentregue')" id="nav-naoentregue"><span class="nav-icon"><span class="status-dot dot-naoentregue" style="width:8px;height:8px"></span></span>Não Entregue<span class="nav-count" id="navcount-naoentregue"></span></button>
     <button class="nav-item" onclick="showDecl('impugnacao')" id="nav-impugnacao"><span class="nav-icon"><span class="status-dot dot-impugnacao" style="width:8px;height:8px"></span></span>⚖️ Impugnação<span class="nav-count" id="navcount-impugnacao"></span></button>
     <button class="nav-item" onclick="navClientFilter('PROCP','nav-proc')" id="nav-proc"><span class="nav-icon">⚖️</span>Processo Pendente<span class="nav-count" id="navcount-proc"></span></button>
     <button class="nav-item" onclick="showView('processos')" id="nav-processos"><span class="nav-icon">📂</span>Processos e-CAC<span class="nav-count" id="navcount-eproc"></span></button>
@@ -520,6 +526,7 @@ body.exercicios-level .full-edit-only{display:none!important}
             <select id="rel-status">
               <option value="TODOS">Todos</option>
               <option value="recepcionada">Recepcionada</option>
+              <option value="aguardproc">Aguardando Processamento</option>
               <option value="processamento">Em Processamento</option>
               <option value="processada">Processada</option>
               <option value="fila">Em Fila de Restituição</option>
@@ -529,10 +536,11 @@ body.exercicios-level .full-edit-only{display:none!important}
               <option value="analise">Aguardando Análise de Documentos</option>
               <option value="tmanual">Em Tratamento Manual</option>
               <option value="reprocessamento">Em Reprocessamento</option>
+              <option value="naoentregue">Não Entregue (status e-CAC)</option>
               <option value="impugnar">⚖️ Impugnar (marcador)</option>
               <option value="impugnacao">⚖️ Impugnação (marcador)</option>
               <option value="reclassificar">A reclassificar (status antigo)</option>
-              <option value="nao_entregue">🚫 Não Entregue (declaração ausente)</option>
+              <option value="nao_entregue">🚫 Sem exercício cadastrado no programa</option>
             </select>
           </div>
           <div class="rel-group">
@@ -859,7 +867,8 @@ body.exercicios-level .full-edit-only{display:none!important}
       <div class="form-group"><label>Categoria</label>
         <select id="ex-cat" onchange="toggleExCatBoxes()">
           <option value="RECEPCIONADA">🔵 Recepcionada</option>
-          <option value="EM PROCESSAMENTO">🔄 Em Processamento</option>
+          <option value="AGUARDANDO PROCESSAMENTO">⏳ Aguardando Processamento</option>
+    <option value="EM PROCESSAMENTO">🔄 Em Processamento</option>
           <option value="PROCESSADA">✅ Processada</option>
           <option value="EM FILA DE RESTITUIÇÃO">🟢 Em Fila de Restituição</option>
           <option value="AGUARDANDO CHAVE PIX CPF">🔑 Aguardando Chave PIX CPF</option>
@@ -868,6 +877,7 @@ body.exercicios-level .full-edit-only{display:none!important}
           <option value="AGUARDANDO ANÁLISE DE DOCUMENTOS">📄 Aguardando Análise de Documentos</option>
           <option value="EM TRATAMENTO MANUAL">⚙️ Em Tratamento Manual</option>
           <option value="EM REPROCESSAMENTO">🔁 Em Reprocessamento</option>
+    <option value="NÃO ENTREGUE">🚫 Não Entregue</option>
         </select></div>
       <div class="form-group"><label>Controle do escritório</label>
         <select id="ex-marcador" onchange="toggleExCatBoxes()">
@@ -1045,6 +1055,7 @@ body.exercicios-level .full-edit-only{display:none!important}
   </div>
   <select id="qe-cat">
     <option value="RECEPCIONADA">🔵 Recepcionada</option>
+    <option value="AGUARDANDO PROCESSAMENTO">⏳ Aguardando Processamento</option>
     <option value="EM PROCESSAMENTO">🔄 Em Processamento</option>
     <option value="PROCESSADA">✅ Processada</option>
     <option value="EM FILA DE RESTITUIÇÃO">🟢 Em Fila de Restituição</option>
@@ -1054,6 +1065,7 @@ body.exercicios-level .full-edit-only{display:none!important}
     <option value="AGUARDANDO ANÁLISE DE DOCUMENTOS">📄 Aguardando Análise de Documentos</option>
     <option value="EM TRATAMENTO MANUAL">⚙️ Em Tratamento Manual</option>
     <option value="EM REPROCESSAMENTO">🔁 Em Reprocessamento</option>
+    <option value="NÃO ENTREGUE">🚫 Não Entregue</option>
   </select>
   <textarea id="qe-detalhe" placeholder="Detalhes / observação (opcional)…"></textarea>
   <div style="display:flex;justify-content:flex-end;gap:7px;margin-top:10px">
@@ -2270,6 +2282,7 @@ function setDeclYear(yr){
 // Impugnar / Impugnação viraram MARCADORES do escritório (c.exMarcador[ano]).
 const ECAC_STATUS=[
   {v:'RECEPCIONADA',cls:'recepcionada',label:'Recepcionada',icon:'🔵'},
+  {v:'AGUARDANDO PROCESSAMENTO',cls:'aguardproc',label:'Aguardando Processamento',icon:'⏳'},
   {v:'EM PROCESSAMENTO',cls:'processamento',label:'Em Processamento',icon:'🔄'},
   {v:'PROCESSADA',cls:'processada',label:'Processada',icon:'✅'},
   {v:'EM FILA DE RESTITUIÇÃO',cls:'fila',label:'Em Fila de Restituição',icon:'🟢'},
@@ -2279,6 +2292,7 @@ const ECAC_STATUS=[
   {v:'AGUARDANDO ANÁLISE DE DOCUMENTOS',cls:'analise',label:'Aguardando Análise de Documentos',icon:'📄'},
   {v:'EM TRATAMENTO MANUAL',cls:'tmanual',label:'Em Tratamento Manual',icon:'⚙️'},
   {v:'EM REPROCESSAMENTO',cls:'reprocessamento',label:'Em Reprocessamento',icon:'🔁'},
+  {v:'NÃO ENTREGUE',cls:'naoentregue',label:'Não Entregue',icon:'🚫'},
 ];
 const ECAC_DDA_CLS=new Set(ECAC_STATUS.filter(s=>s.dda).map(s=>s.cls));   // pendencias, intimacao
 const ECAC_MALHA_CLS=new Set(['pendencias','intimacao','analise']);         // "estão em malha"
@@ -2287,7 +2301,7 @@ const _ST_LEGADO=[
   ['TRABALHO MANUAL RFB','tmanual'],['TRABALHO MANUAL','tmanual'],['TRANSMITIDA','recepcionada'],
   ['EM MALHA','reclassificar'],['IMPUGNAÇÃO','reclassificar'],['IMPUGNAR','reclassificar'],
   ['PERDCOMP','reclassificar'],['PARCELAMENTO','reclassificar'],['DDA','reclassificar'],
-  ['AGUARDANDO','reclassificar'],['NÃO DECLARADA','reclassificar'],['OUTRO','reclassificar']];
+  ['AGUARDANDO','reclassificar'],['NÃO DECLARADA','naoentregue'],['OUTRO','reclassificar']];
 function _stNorm(s){return String(s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toUpperCase().replace(/\s+/g,' ').trim();}
 function _stPrefixLen(st,pref){
   // quantos caracteres do texto ORIGINAL correspondem ao prefixo (ignorando acento/caixa)
