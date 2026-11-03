@@ -4985,17 +4985,27 @@ const _ECAC_VIVOS=['rodando','pausado','aguardando_relogin','aguardando_rede','r
 // programa receber o resultado. Segue o mesmo caminho do fim de uma consulta.
 async function ecacRecuperar(){
   const ns=[1,2,3,4];
-  const outs=await Promise.all(ns.map(n=>fetch(_ecacSrv(n)+'/parcial',{cache:'no-store'}).then(r=>r.json()).catch(()=>null)));
-  const vivos=ns.map((n,i)=>({n,js:outs[i]})).filter(x=>x.js&&!x.js.vazio&&((x.js.resultados||[]).length||(x.js.processos||[]).length));
+  // 1º: pede a QUALQUER servidor de pé os arquivos de TODAS as sessões (/parciais);
+  // assim não depende de os 4 servidores estarem respondendo na hora do clique.
+  let lista=null;
+  for(const n of ns){
+    try{const r=await fetch(_ecacSrv(n)+'/parciais',{cache:'no-store'});if(!r.ok)continue;const j=await r.json();if(Array.isArray(j.parciais)){lista=j.parciais;break;}}catch(e){}
+  }
+  if(!lista){ // servidor antigo (sem /parciais): pede um a um, como antes
+    const outs=await Promise.all(ns.map(n=>fetch(_ecacSrv(n)+'/parcial',{cache:'no-store'}).then(r=>r.json()).catch(()=>null)));
+    lista=outs.map((js,i)=>js?Object.assign(js,{sessao:ns[i]}):null);
+  }
+  const vivos=lista.filter(Boolean).map(js=>({n:+js.sessao,js})).filter(x=>x.js&&!x.js.vazio&&((x.js.resultados||[]).length||(x.js.processos||[]).length)).sort((a,b)=>a.n-b.n);
   if(!vivos.length){showToast('Nada para recuperar — abra os servidores pelo ABRIR PROGRAMA e-CAC.bat e tente de novo.','error');return;}
   // só junta sessões gravadas na mesma consulta (até 3 h da mais recente)
   const t=x=>Date.parse(String(x.js.gerado_em||'').replace(' ','T'))||0;
   const max=Math.max(...vivos.map(t));
   const ok=vivos.filter(x=>max-t(x)<3*3600e3);
   const resumo=ok.map(x=>`S${x.n}: ${x.js.idx||0}/${x.js.total||0}`).join(' · ');
+  const faltam=ns.filter(n=>!ok.some(x=>x.n===n));
   if(!confirm(`Recuperar a consulta gravada em ${ok.map(x=>x.js.gerado_em).sort().pop()}?
 
-${resumo}
+${resumo}${faltam.length?`\n\n⚠️ Sem arquivo desta consulta: sessão(ões) ${faltam.join(', ')}`:''}
 
 Os resultados serão gravados no cadastro como no fim de uma consulta normal (comparação, processos, avisos do MIR).`))return;
   const comp=ok.map(x=>Object.assign({},x.js,{estado:/conclu/i.test(x.js.atual||'')&&+x.js.idx>=+x.js.total?'concluido':'erro',
