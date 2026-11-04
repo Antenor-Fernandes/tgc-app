@@ -2726,11 +2726,23 @@ function getPerdcomps(c){
   return[];
 }
 function detailPerdcompHtml(c){
-  if(!c.temPer)return'Não';
+  // Fonte única: clientHasPer (PERs legados da ficha + PERs por exercício). Não depende de c.temPer.
+  if(!clientHasPer(c))return'Não';
   const ps=getPerdcomps(c);
-  if(!ps.length)return'<span class="badge badge-per">Sim</span>';
   const BRL=v=>v?v.toLocaleString('pt-BR',{minimumFractionDigits:2}):'0,00';
   let html='<span class="badge badge-per">Sim</span>';
+  // PERs por exercício (formato atual)
+  const exYrs=Object.keys(c.exPerdcomps||{}).filter(y=>Array.isArray(c.exPerdcomps[y])&&c.exPerdcomps[y].length).sort((a,b)=>b.localeCompare(a));
+  exYrs.forEach(yr=>{
+    c.exPerdcomps[yr].forEach(p=>{
+      let sit='';
+      if(p.indeferido)sit=`<span style="color:var(--red)">Indeferido</span>`;
+      else if(p.valorRec>0&&p.dataRec)sit=`<span style="color:var(--green)">💰 Recebido R$ ${BRL(p.valorRec)} em ${p.dataRec}</span>`;
+      else if(p.valorPedido>0)sit=`<span style="color:var(--yellow)">A receber R$ ${BRL(p.valorPedido)}</span>`;
+      html+=`<div style="font-size:11px;margin-top:3px"><b>${yr}</b>${sit?' · '+sit:''}</div>`;
+    });
+  });
+  if(!ps.length)return html;
   ps.forEach((p,i)=>{
     const sep=ps.length>1&&i?';padding-top:5px;border-top:1px solid var(--border)':'';
     html+=`<div style="font-size:11px;margin-top:${i?'6px':'3px'}${sep}">`;
@@ -2777,7 +2789,7 @@ function renderPer(){
   const perListEl=document.getElementById('per-list');
   if(!perCountEl||!perListEl)return; // view-per não está ativa
   const q=(document.getElementById('per-search')?.value||'').toLowerCase();
-  const perClients=allClients.filter(c=>c.temPer&&(!q||c.nome.toLowerCase().includes(q)||c.cpfCnpj.includes(q)));
+  const perClients=allClients.filter(c=>clientHasPer(c)&&(!q||c.nome.toLowerCase().includes(q)||c.cpfCnpj.includes(q)));
   perCountEl.textContent=perClients.length+' clientes';
   if(!perClients.length){
     document.getElementById('per-list').innerHTML='<div class="empty-state"><div class="empty-icon" style="display:flex;justify-content:center"><span class="status-dot dot-per" style="width:28px;height:28px"></span></div><div style="margin-top:8px">Nenhum cliente com PERDCOMP</div></div>';
@@ -3479,7 +3491,7 @@ function openDetail(id){
       ${c.procurador?`<div class="info-card"><div class="info-card-label">Procurador</div><div class="info-card-val" style="font-size:12.5px">${esc(c.procurador)}</div></div>`:''}
       <div class="info-card"><div class="info-card-label">Contrato</div><div class="info-card-val" style="font-size:12px">${c.dataContrato?`📅 ${esc(c.dataContrato)}`:'—'}${c.honorarios?` · 💰 ${esc(c.honorarios)}`:''}</div></div>
       ${c.objeto?`<div class="info-card" style="grid-column:span 2"><div class="info-card-label">Objeto</div><div class="info-card-val" style="font-size:12.5px">${esc(c.objeto)}</div></div>`:''}
-      <div class="info-card" style="${c.temPer?'border-color:rgba(245,158,11,.35);background:rgba(245,158,11,.04)':''}"><div class="info-card-label">PERDCOMP</div><div class="info-card-val">${detailPerdcompHtml(c)}</div></div>
+      <div class="info-card" style="${clientHasPer(c)?'border-color:rgba(245,158,11,.35);background:rgba(245,158,11,.04)':''}"><div class="info-card-label">PERDCOMP</div><div class="info-card-val">${detailPerdcompHtml(c)}</div></div>
       <div class="info-card" style="${clientHasProc(c)?'border-color:rgba(99,102,241,.35);background:rgba(99,102,241,.04)':''}"><div class="info-card-label">PROCESSO</div><div class="info-card-val">${detailProcessoHtml(c)}</div></div>
       <div class="info-card" style="${c.doencaGrave?'border-color:rgba(220,38,38,.35);background:rgba(220,38,38,.05)':''}"><div class="info-card-label">Doença Grave</div><div class="info-card-val">${c.doencaGrave?`<span class="tag-doenca">🩺 Sim – isento de IR</span>${c.laudo?'<div style="font-size:11px;margin-top:4px;color:var(--green)">✅ Laudo obtido pelo escritório</div>':''}${c.diagnostico?`<div style="font-size:11px;margin-top:4px;color:var(--text2)">${c.diagnostico}</div>`:''}${c.dataAposentadoria?`<div style="font-size:11px;margin-top:4px;color:var(--text3)">Aposen./Pensão: ${c.dataAposentadoria}</div>`:''}`:'Não'}</div></div>
 
@@ -4085,6 +4097,7 @@ async function saveExModal(){
   const perEntries=collectExPerEntries();
   if(perEntries.length){c.exPerdcomps[yr]=perEntries;}
   else{delete c.exPerdcomps[yr];}
+  c.temPer=clientHasPer(c);
   document.getElementById('modal-ex').style.display='none';
   detailId=exEditId;
   // Sincroniza lote do recebimento principal do exercício
@@ -4226,6 +4239,7 @@ async function deleteExModal(){
     }
   }
   if(c.exPerdcomps)delete c.exPerdcomps[exEditYear];
+  c.temPer=clientHasPer(c);
   // Remove PROCESSOs do exercício dos lotes de restituição
   const exProcsParaRemover=(c.exProcessos&&c.exProcessos[exEditYear])||[];
   for(let i=0;i<exProcsParaRemover.length;i++){
@@ -4611,7 +4625,7 @@ function renderSidebarStats(){
   const pj=allClients.filter(c=>c.tipo==='PJ').length;
   const countByCls=cls=>allClients.filter(c=>c.exercicios&&Object.values(c.exercicios).some(v=>classifyStatus(v).cls===cls)).length;
   const malha=allClients.filter(c=>Object.values(c.exercicios||{}).some(v=>ECAC_MALHA_CLS.has(classifyStatus(v).cls))).length;
-  const per=allClients.filter(c=>c.temPer).length;
+  const per=allClients.filter(clientHasPer).length;
   const dg=allClients.filter(c=>c.doencaGrave).length;
   const perCount=allClients.filter(clientHasPer).length;
   // Totais financeiros dos PERDCOMPs
