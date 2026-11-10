@@ -5256,7 +5256,7 @@ function renderProcessosLista(){
     const comPend=new Set(pend.map(n=>n.processo));
     const cor=pend.length?'#d97706':(e.falha?'#dc2626':'#7c3aed');
     const nov=pend.length?`<div style="padding:10px 16px;background:#d9770610;border-bottom:1px solid var(--border);display:flex;flex-direction:column;gap:4px">${pend.map(n=>`<div style="font-size:12.5px;color:var(--text)"><span style="margin-right:6px">${_EPROC_TIPO_NOV[n.tipo]||'🔔'}</span><span style="font-family:'DM Mono',monospace;font-size:11.5px;color:var(--text2)">${esc(n.processo||'')}</span> — ${esc(n.texto||'')}${n.detectadoEm?` <span style="font-size:11px;color:var(--text3)">(lido em ${esc(String(n.detectadoEm).slice(0,10))})</span>`:''}</div>`).join('')}</div>`:'';
-    const falha=e.falha?`<div style="padding:8px 16px;font-size:12px;color:#dc2626;border-bottom:1px solid var(--border)">${esc(e.falha)}${e.falhaEm?` <span style="color:var(--text3)">(${esc(e.falhaEm)})</span>`:''}</div>`:'';
+    const falha=e.falha?`<div style="padding:8px 16px;font-size:12px;color:#dc2626;border-bottom:1px solid var(--border)">${esc(e.falha)}${e.falhaEm?` <span style="color:var(--text3)">(última: ${esc(e.falhaEm)}${e.falhaDesde&&String(e.falhaDesde).slice(0,10)!==String(e.falhaEm).slice(0,10)?` · desde ${esc(String(e.falhaDesde).slice(0,10))}`:''})</span>`:''}${e.retrato?` <span style="color:var(--text3)">— processos abaixo são da leitura anterior${e.lidoEm?' ('+esc(String(e.lidoEm).slice(0,10))+')':''}</span>`:''}</div>`:'';
     const linhas=ativos.map(p=>{
       const rec=_eprocRecente(p,30), hl=comPend.has(p.numeroFormatado);
       return`<div class="ex-item" style="grid-template-columns:170px 1.3fr 1fr 70px 1.6fr;${hl?'border-color:#d97706;background:#d977060d':''}">
@@ -5322,8 +5322,14 @@ async function eprocAplicar(lista){
       c.eproc={retrato:r.retrato,pendentes:pend,lidoEm:r.retrato.lidoEm,falha:'',vistoEm:e.vistoEm||''};
       nL++;
     }else{
-      if(e.falha===r.obs)continue;
-      c.eproc=Object.assign({},e,{falha:r.obs||'falha',falhaEm:new Date().toLocaleString('pt-BR')});
+      // falhaEm = última ocorrência (vem do servidor); falhaDesde = 1ª vez desta mesma falha
+      const quando=r.falhaEm||new Date().toLocaleString('pt-BR');
+      if(e.falha===r.obs){
+        if(!r.falhaEm||e.falhaEm===r.falhaEm)continue;
+        c.eproc=Object.assign({},e,{falhaEm:quando,falhaDesde:e.falhaDesde||e.falhaEm||quando});
+      }else{
+        c.eproc=Object.assign({},e,{falha:r.obs||'falha',falhaEm:quando,falhaDesde:quando});
+      }
       nF++;
     }
     mudados.push(c);
