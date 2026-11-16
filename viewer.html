@@ -4757,7 +4757,7 @@ function renderEcacModal(){
   if(comOutros.length){
     h+=`<details style="margin-top:10px"><summary style="cursor:pointer;font-weight:700;color:var(--yellow)">🔎 Conferir — sem divergência de status (${comOutros.length})</summary>`;
     for(const m of comOutros){
-      h+=`<div style="border:1px solid var(--border);border-radius:9px;padding:8px 10px;margin-top:6px"><div style="font-weight:600">${esc(m.c.nome)}</div>${m.outros.map(o=>`<div style="font-size:12px;color:var(--text2)">${esc(o.ano)}: ${o.situacao==='ausente_ecac'?'no programa, ausente no e-CAC':'status e-CAC não reconhecido'} — e-CAC: ${esc(o.ecac||'—')} · prog: ${esc(o.programa||'—')}</div>`).join('')}</div>`;
+      h+=`<div style="border:1px solid var(--border);border-radius:9px;padding:8px 10px;margin-top:6px"><div style="font-weight:600">${esc(m.c.nome)} <span style="color:var(--text3);font-weight:400;font-size:12px">${esc(m.c.cpfCnpj)}</span></div>${m.outros.map(o=>`<div style="font-size:12px;color:var(--text2)">${esc(o.ano)}: ${o.situacao==='ausente_ecac'?'no programa, ausente no e-CAC':'status e-CAC não reconhecido'} — e-CAC: ${esc(o.ecac||'—')} · prog: ${esc(o.programa||'—')}</div>`).join('')}</div>`;
     }
     h+=`</details>`;
   }
@@ -5306,7 +5306,7 @@ function honAnalisarLegado(){
       if(todos.length===0){conta('o texto não diz o exercício');return;}
       const anos=todos.filter(a=>(c.exercicios||{})[a]!==undefined);
       if(!anos.length){conta('exercício não cadastrado no cliente');return;}
-      acoes.push({id:c.id,nome:c.nome||'',idx:i,anos,fora:todos.filter(a=>!anos.includes(a)),servico:p.servico||'',data:p.data||'',valor:p.valor||''});
+      acoes.push({id:c.id,nome:c.nome||'',cpf:c.cpfCnpj||'',idx:i,anos,fora:todos.filter(a=>!anos.includes(a)),servico:p.servico||'',data:p.data||'',valor:p.valor||''});
     });
   }
   return{acoes,motivos};
@@ -5341,7 +5341,7 @@ function honAbrirVinculador(){
       </div>
       <div style="max-height:320px;overflow-y:auto">
         ${amostra.map(a=>`<div style="display:grid;grid-template-columns:1fr 90px 100px 1fr 70px;gap:8px;padding:7px 11px;border-top:1px solid var(--border);font-size:12px;align-items:center">
-          <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(a.nome)}</span>
+          <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(a.nome)} · ${esc(a.cpf||'')}">${esc(a.nome)} <span style="font-family:'DM Mono',monospace;color:var(--text3);font-size:11px">${esc(a.cpf||'—')}</span></span>
           <span style="font-family:'DM Mono',monospace;color:var(--text3)">${esc(a.data||'—')}</span>
           <span style="color:var(--green);font-weight:600">${esc(a.valor||'—')}</span>
           <span style="color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(a.servico)}</span>
