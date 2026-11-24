@@ -1435,37 +1435,309 @@ function setSaveIndicator(state,msg){
     el.style.display='none';
   }
 }
-// ── DESFAZER (undo das gravações desta sessão) ────────────────────────────────
-let _undoStack=[];        // snapshots anteriores (deep copies); mais recente no fim
-let _undoBaseline=null;   // estado atualmente persistido nesta sessão
+// ── GRAVAÇÃO À PROVA DE CONFLITO + DESFAZER POR CLIENTE (nov/2026) ───────────
+// Corrige a perda de alterações de 23–24/11/2026: uma aba aberta há horas (ex.: a
+// da Consulta e-CAC) gravava a SUA cópia antiga do cadastro inteiro por cima do
+// GitHub; e no conflito (HTTP 409) só trocava o sha e reenviava a cópia antiga,
+// apagando o que outras abas/pessoas tinham gravado no meio-tempo.
+// Agora cada aba guarda a BASE (como o cadastro estava no GitHub quando ela leu ou
+// gravou pela última vez). Ao gravar: lê a versão ATUAL do GitHub, aplica por cima
+// dela só o que ESTA aba mudou em relação à base (por cliente e por campo) e grava
+// com o sha atual. Se alguém gravou no meio (409), relê e junta de novo.
+// Nunca mais uma cópia antiga inteira vai por cima do GitHub.
+let _ghBase=null;            // {cli:Map id->json, lot:Map data->json, acc:json}
+let _ghBaseSha=null;         // sha do GitHub que corresponde ao conteúdo da base (null = desconhecido)
+let _ghFilaP=Promise.resolve();
+let _ghUltPuxada=0;
+let _undoStack=[];           // [{ts, cli:[{k,antes,depois}], lot:[...], acc:{antes,depois}|null}]
 let _suppressUndoCapture=false;
 const UNDO_MAX=20;
-function _snapshotAtual(){
-  return JSON.parse(JSON.stringify({clientes:allClients,lotes:allLotes,access:accessList}));
-}
-function _captureUndoAfterSave(){
-  // Chamado após cada gravação bem-sucedida: empilha o estado anterior.
-  if(_suppressUndoCapture)return;
-  if(_undoBaseline!==null){
-    _undoStack.push(_undoBaseline);
-    while(_undoStack.length>UNDO_MAX)_undoStack.shift();
+const GH_PEND_KEY='cadastroIR_pendente';
+function _ghFila(fn){const p=_ghFilaP.then(fn,fn);_ghFilaP=p.catch(()=>{});return p;}
+function _js(v){return v===undefined?undefined:JSON.stringify(v);}
+function _isObj(v){return v!==null&&typeof v==='object'&&!Array.isArray(v);}
+// Junção em 3 vias: b = base, l = esta aba, r = GitHub atual. k = nome do campo.
+function _merge3(b,l,r,k){
+  const sb=_js(b),sl=_js(l),sr=_js(r);
+  if(sl===sb)return r;                 // esta aba não mexeu: vale o GitHub
+  if(sr===sb||sr===sl)return l;        // só esta aba mexeu (ou os dois iguais)
+  // listas de eventos (histórico de status, novidades pendentes): junção item a item —
+  // mantém o que cada lado acrescentou e tira o que cada lado removeu (ex.: "✔ Visto")
+  if((k==='historico'||k==='pendentes')&&Array.isArray(l)&&Array.isArray(r)){
+    const bS=new Set((Array.isArray(b)?b:[]).map(_js)),lS=new Set(l.map(_js)),rS=new Set(r.map(_js));
+    const vis=new Set(),out=[];
+    for(const h of r){const s=_js(h);if(bS.has(s)&&!lS.has(s))continue;if(!vis.has(s)){vis.add(s);out.push(h);}}
+    for(const h of l){const s=_js(h);if(bS.has(s)&&!rS.has(s))continue;if(!vis.has(s)){vis.add(s);out.push(h);}}
+    if(k==='historico')out.sort((x,y)=>String((y&&y.ts)||'').localeCompare(String((x&&x.ts)||'')));
+    return out;
   }
-  _undoBaseline=_snapshotAtual();
+  if(_isObj(l)&&_isObj(r)){
+    const bb=_isObj(b)?b:{},out={};
+    const ks=new Set([...Object.keys(bb),...Object.keys(l),...Object.keys(r)]);
+    for(const kk of ks){const v=_merge3(bb[kk],l[kk],r[kk],kk);if(v!==undefined)out[kk]=v;}
+    return out;
+  }
+  return l;                            // o MESMO campo mudou aqui e lá: vale esta aba
+}
+// Um cliente/lote: bs = json da base (ou undefined), l/r = objetos (ou undefined)
+function _juntarItem(bs,l,r){
+  if(l===undefined&&r===undefined)return undefined;
+  if(l===undefined){if(bs===undefined)return r;return _js(r)===bs?undefined:r;}   // apagado aqui; se mudou lá, mantém
+  if(r===undefined){if(bs===undefined)return l;return _js(l)===bs?undefined:l;}   // apagado lá; se mudou aqui, mantém
+  return _merge3(bs===undefined?{}:JSON.parse(bs),l,r,null);
+}
+function _ghMapas(data){
+  const cli=new Map(),lot=new Map();
+  for(const c of (data.clientes||[]))if(c&&c.id!=null)cli.set(String(c.id),JSON.stringify(c));
+  for(const l of (data.lotes||[]))if(l&&l.data!=null)lot.set(String(l.data),JSON.stringify(l));
+  return {cli,lot,acc:JSON.stringify(Array.isArray(data.access)?data.access:[])};
+}
+function _ghColetar(){return _ghMapas({clientes:allClients,lotes:allLotes,access:accessList});}
+function _ghMudancas(loc,base){
+  const cli=[],lot=[];
+  for(const [k,s] of loc.cli)if(base.cli.get(k)!==s)cli.push(k);
+  for(const k of base.cli.keys())if(!loc.cli.has(k))cli.push(k);
+  for(const [k,s] of loc.lot)if(base.lot.get(k)!==s)lot.push(k);
+  for(const k of base.lot.keys())if(!loc.lot.has(k))lot.push(k);
+  const acc=loc.acc!==base.acc;
+  return {cli,lot,acc,n:cli.length+lot.length+(acc?1:0)};
+}
+function _ghJuntarMapa(bm,lm,rm){
+  const out=new Map();
+  for(const k of new Set([...rm.keys(),...lm.keys(),...bm.keys()])){
+    const bs=bm.get(k),ls=lm.get(k),rs=rm.get(k);
+    let res;
+    if(ls===bs)res=rs;
+    else if(rs===bs||rs===ls)res=ls;
+    else res=_js(_juntarItem(bs,ls===undefined?undefined:JSON.parse(ls),rs===undefined?undefined:JSON.parse(rs)));
+    if(res!==undefined)out.set(k,res);
+  }
+  return out;
+}
+function _ghJuntarTudo(base,loc,rem){
+  let acc=(loc.acc===base.acc)?rem.acc:loc.acc;
+  if(acc==='[]'&&loc.acc!=='[]')acc=loc.acc;   // GitHub sem lista de acesso: mantém a local (mesma regra do init)
+  return {cli:_ghJuntarMapa(base.cli,loc.cli,rem.cli),lot:_ghJuntarMapa(base.lot,loc.lot,rem.lot),acc};
+}
+function _b64ParaTexto(b64){
+  const bin=atob(String(b64).replace(/\s/g,''));
+  const u8=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u8[i]=bin.charCodeAt(i);
+  return new TextDecoder('utf-8').decode(u8);
+}
+function _textoParaB64(txt){
+  const u8=new TextEncoder().encode(txt);let s='';
+  for(let i=0;i<u8.length;i+=0x8000)s+=String.fromCharCode.apply(null,u8.subarray(i,i+0x8000));
+  return btoa(s);
+}
+// Lê a versão ATUAL do data.json pela API (não pelo raw, que tem cache de minutos).
+// Se shaConhecido for igual ao atual, devolve {sha, data:null} sem baixar o conteúdo.
+async function _ghLerAtual(tok,shaConhecido){
+  const api=`https://api.github.com/repos/${ghCfg.owner}/${ghCfg.repo}`;
+  const h={'Authorization':`token ${tok}`,'Accept':'application/vnd.github.v3+json'};
+  const r=await fetchComTimeout(`${api}/contents/data.json`,{headers:h,cache:'no-store'},15000);
+  if(r.status===404)return {sha:null,data:{clientes:[],lotes:[],access:[]}};
+  if(!r.ok){let m=`HTTP ${r.status}`;try{const e=await r.json();m=e.message||m;}catch(e){}throw new Error(m);}
+  const j=await r.json();
+  if(shaConhecido&&j.sha===shaConhecido)return {sha:j.sha,data:null};
+  let b64=(j.encoding==='base64'&&j.content)?j.content:null;
+  if(!b64){
+    const rb=await fetchComTimeout(`${api}/git/blobs/${j.sha}`,{headers:h,cache:'no-store'},45000);
+    if(!rb.ok)throw new Error(`HTTP ${rb.status} (blob)`);
+    b64=(await rb.json()).content;
+  }
+  return {sha:j.sha,data:JSON.parse(_b64ParaTexto(b64))};
+}
+function _ghSubstituir(obj,novo){for(const k of Object.keys(obj))delete obj[k];Object.assign(obj,novo);}
+// Leva para a memória (e IndexedDB) o resultado da junção, sem pisar no que esta
+// aba alterou DURANTE a gravação (loc = foto tirada no início).
+async function _ghAplicar(loc,out){
+  const ids=new Set();let n=0;
+  const mem=new Map(allClients.map(c=>[String(c.id),c]));
+  for(const [k,s] of out.cli){
+    if(loc.cli.get(k)===s)continue;
+    const atual=mem.get(k);
+    if(atual){
+      const sa=JSON.stringify(atual);
+      const novo=(sa===loc.cli.get(k))?JSON.parse(s):_juntarItem(loc.cli.get(k),atual,JSON.parse(s));
+      if(novo===undefined||JSON.stringify(novo)===sa)continue;
+      _ghSubstituir(atual,novo);await dbPut('clientes',atual);ids.add(k);n++;
+    }else if(!loc.cli.has(k)){
+      const novo=JSON.parse(s);allClients.push(novo);await dbPut('clientes',novo);ids.add(k);n++;
+    }
+  }
+  for(const [k,atual] of mem){
+    if(out.cli.has(k)||!loc.cli.has(k))continue;
+    if(JSON.stringify(atual)!==loc.cli.get(k))continue;
+    const i=allClients.indexOf(atual);if(i>=0)allClients.splice(i,1);
+    await dbDelete('clientes',atual.id);ids.add(k);n++;
+  }
+  const memL=new Map(allLotes.map(l=>[String(l.data),l]));
+  for(const [k,s] of out.lot){
+    if(loc.lot.get(k)===s)continue;
+    const atual=memL.get(k);
+    if(atual){
+      const sa=JSON.stringify(atual);
+      const novo=(sa===loc.lot.get(k))?JSON.parse(s):_juntarItem(loc.lot.get(k),atual,JSON.parse(s));
+      if(novo===undefined||JSON.stringify(novo)===sa)continue;
+      _ghSubstituir(atual,novo);await dbPut('lotes',atual);n++;
+    }else if(!loc.lot.has(k)){const novo=JSON.parse(s);allLotes.push(novo);await dbPut('lotes',novo);n++;}
+  }
+  for(const [k,atual] of memL){
+    if(out.lot.has(k)||!loc.lot.has(k))continue;
+    if(JSON.stringify(atual)!==loc.lot.get(k))continue;
+    const i=allLotes.indexOf(atual);if(i>=0)allLotes.splice(i,1);
+    await dbDelete('lotes',atual.data);n++;
+  }
+  if(out.acc!==loc.acc&&JSON.stringify(accessList)===loc.acc){
+    accessList=JSON.parse(out.acc);n++;
+    try{localStorage.setItem('cadastroIR_accessList',JSON.stringify(accessList));}catch(e){}
+  }
+  return {n,ids};
+}
+function _ghModalAberto(){
+  return [...document.querySelectorAll('.modal-overlay')].some(m=>getComputedStyle(m).display!=='none');
+}
+// Atualiza a tela depois que chegaram alterações de outras abas/pessoas.
+function _ghAposPuxar(ap){
+  try{
+    allClients.sort((a,b)=>(a.nome||'').localeCompare(b.nome||'','pt-BR'));
+    filteredClients=[...allClients];
+    filterClients();renderSidebarStats();renderFilterChips();
+    if(typeof renderNavCounts==='function')renderNavCounts();
+    if(currentView==='detalhe'&&detailId&&ap.ids.has(String(detailId))&&!_ghModalAberto())openDetail(detailId);
+    if(currentView==='decl')renderDecl();
+  }catch(e){console.warn('[sync] atualizar tela:',e);}
+}
+// ── pendências: alterações que não chegaram ao GitHub (sem conexão) ──
+function _ghPendLer(){try{const p=JSON.parse(localStorage.getItem(GH_PEND_KEY)||'null');return (p&&p.cli)?p:null;}catch(e){return null;}}
+// Tira das pendências só o que ESTA gravação levou ao GitHub (outras abas do mesmo
+// navegador podem ter pendências próprias no mesmo localStorage).
+function _ghPendLimpar(mud){
+  try{
+    const p=_ghPendLer();if(!p)return;
+    for(const k of mud.cli)delete p.cli[k];
+    for(const k of mud.lot)if(p.lot)delete p.lot[k];
+    if(mud.acc)delete p.acc;
+    if(!Object.keys(p.cli).length&&!Object.keys(p.lot||{}).length&&!p.acc)localStorage.removeItem(GH_PEND_KEY);
+    else localStorage.setItem(GH_PEND_KEY,JSON.stringify(p));
+  }catch(e){}
+}
+function _ghPendGuardar(mud){
+  try{
+    const p=_ghPendLer()||{cli:{},lot:{}};
+    for(const k of mud.cli)if(!(k in p.cli))p.cli[k]=_ghBase.cli.has(k)?{b:_ghBase.cli.get(k)}:{novo:1};
+    for(const k of mud.lot)if(!(k in p.lot))p.lot[k]=_ghBase.lot.has(k)?{b:_ghBase.lot.get(k)}:{novo:1};
+    if(mud.acc)p.acc=1;
+    p.ts=new Date().toISOString();
+    try{localStorage.setItem(GH_PEND_KEY,JSON.stringify(p));}
+    catch(e){ // sem espaço: guarda só quais registros estão pendentes
+      const q={cli:{},lot:{},acc:p.acc,ts:p.ts};
+      for(const k in p.cli)q.cli[k]=p.cli[k].novo?{novo:1}:{nb:1};
+      for(const k in p.lot)q.lot[k]=p.lot[k].novo?{novo:1}:{nb:1};
+      localStorage.setItem(GH_PEND_KEY,JSON.stringify(q));
+    }
+  }catch(e){console.warn('[sync] pendências:',e);}
+}
+function _pendBase(ent){return ent.b!==undefined?ent.b:(ent.nb?'{}':undefined);}
+// init, dados vieram do GitHub: reaplica por cima deles as pendências guardadas no IndexedDB.
+async function _ghPendReaplicar(){
+  const p=_ghPendLer();if(!p)return false;
+  const idbC=new Map((await dbAll('clientes')).map(c=>[String(c.id),c]));
+  const idbL=new Map((await dbAll('lotes')).map(l=>[String(l.data),l]));
+  const memC=new Map(allClients.map(c=>[String(c.id),c]));
+  for(const k in p.cli){
+    const res=_juntarItem(_pendBase(p.cli[k]),idbC.get(k),memC.get(k));
+    const atual=memC.get(k);
+    if(res===undefined){if(atual)allClients.splice(allClients.indexOf(atual),1);}
+    else if(atual)_ghSubstituir(atual,JSON.parse(JSON.stringify(res)));
+    else allClients.push(JSON.parse(JSON.stringify(res)));
+  }
+  const memL=new Map(allLotes.map(l=>[String(l.data),l]));
+  for(const k in (p.lot||{})){
+    const res=_juntarItem(_pendBase(p.lot[k]),idbL.get(k),memL.get(k));
+    const atual=memL.get(k);
+    if(res===undefined){if(atual)allLotes.splice(allLotes.indexOf(atual),1);}
+    else if(atual)_ghSubstituir(atual,JSON.parse(JSON.stringify(res)));
+    else allLotes.push(JSON.parse(JSON.stringify(res)));
+  }
+  console.log('[sync] pendências de gravação anterior reaplicadas:',Object.keys(p.cli).length,'cliente(s)');
+  return true;
+}
+// init, dados vieram do IndexedDB (GitHub fora): a base dos pendentes é a que foi guardada.
+function _ghPendAjustarBase(){
+  const p=_ghPendLer();if(!p||!_ghBase)return;
+  for(const k in p.cli){const b=_pendBase(p.cli[k]);if(b===undefined)_ghBase.cli.delete(k);else _ghBase.cli.set(k,b);}
+  for(const k in (p.lot||{})){const b=_pendBase(p.lot[k]);if(b===undefined)_ghBase.lot.delete(k);else _ghBase.lot.set(k,b);}
+  if(p.acc)_ghBase.acc='__pendente__';
+}
+// ── DESFAZER (só os clientes da última gravação desta aba) ──
+function _ghRegistrarUndo(baseAnt,out,mud){
+  if(_suppressUndoCapture)return;
+  const ent={ts:Date.now(),cli:[],lot:[],acc:null};
+  for(const k of mud.cli){const a=baseAnt.cli.get(k),d=out.cli.get(k);if(a!==d)ent.cli.push({k,antes:a,depois:d});}
+  for(const k of mud.lot){const a=baseAnt.lot.get(k),d=out.lot.get(k);if(a!==d)ent.lot.push({k,antes:a,depois:d});}
+  if(mud.acc&&baseAnt.acc!==out.acc&&baseAnt.acc!=='__pendente__')ent.acc={antes:baseAnt.acc,depois:out.acc};
+  if(!ent.cli.length&&!ent.lot.length&&!ent.acc)return;
+  _undoStack.push(ent);
+  while(_undoStack.length>UNDO_MAX)_undoStack.shift();
   updateUndoButton();
 }
 function updateUndoButton(){
   const b=document.getElementById('btn-undo');
   if(!b)return;
   if(_undoStack.length>0&&getNivel()!=='visualizar'){
+    const u=_undoStack[_undoStack.length-1];
     b.style.display='inline-flex';
-    b.title=`Desfazer última alteração salva (${_undoStack.length} passo${_undoStack.length>1?'s':''} disponíve${_undoStack.length>1?'is':'l'})`;
+    b.title=`Desfazer a última gravação desta aba (${u.cli.length} cliente${u.cli.length!==1?'s':''}) — ${_undoStack.length} passo${_undoStack.length>1?'s':''} disponíve${_undoStack.length>1?'is':'l'}`;
   }else{
     b.style.display='none';
   }
 }
+// Volta um registro ao "antes" sem desfazer o que outros mudaram DEPOIS (campo a campo).
+function _undoItem(antesS,depoisS,atual){
+  const ant=antesS===undefined?undefined:JSON.parse(antesS);
+  if(atual===undefined)return depoisS===undefined?ant:undefined;   // eu tinha apagado: recria; se outro apagou depois, deixa
+  if(ant===undefined)return JSON.stringify(atual)===depoisS?undefined:atual; // eu tinha criado: apaga, se ninguém mexeu depois
+  return _merge3(depoisS===undefined?{}:JSON.parse(depoisS),atual,ant,null);
+}
+async function desfazer(){
+  if(getNivel()==='visualizar'){showToast('Sem permissão para editar','error');return;}
+  if(!_undoStack.length){showToast('Nada para desfazer','info');return;}
+  const ent=_undoStack[_undoStack.length-1];
+  const memC=new Map(allClients.map(c=>[String(c.id),c]));
+  const nomeDe=it=>{const o=memC.get(it.k)||JSON.parse(it.antes||it.depois||'{}');return `• ${o.nome||'?'} — ${o.cpfCnpj||it.k}`;};
+  const lista=ent.cli.slice(0,8).map(nomeDe).join('\n')+(ent.cli.length>8?`\n… e mais ${ent.cli.length-8}`:'');
+  if(!confirm(`Desfazer a última gravação desta aba?\n\nVoltam ao estado anterior só ${ent.cli.length} cliente(s)${ent.lot.length?` e ${ent.lot.length} lote(s)`:''}:\n${lista}\n\nO que outras pessoas/abas gravaram depois é mantido.`))return;
+  _undoStack.pop();
+  for(const it of ent.cli){
+    const atual=memC.get(it.k);
+    const res=_undoItem(it.antes,it.depois,atual);
+    if(res===undefined){if(atual){allClients.splice(allClients.indexOf(atual),1);await dbDelete('clientes',atual.id);}}
+    else if(atual){if(res!==atual){_ghSubstituir(atual,res);}await dbPut('clientes',atual);}
+    else{allClients.push(res);await dbPut('clientes',res);}
+  }
+  const memL=new Map(allLotes.map(l=>[String(l.data),l]));
+  for(const it of ent.lot){
+    const atual=memL.get(it.k);
+    const res=_undoItem(it.antes,it.depois,atual);
+    if(res===undefined){if(atual){allLotes.splice(allLotes.indexOf(atual),1);await dbDelete('lotes',atual.data);}}
+    else if(atual){if(res!==atual){_ghSubstituir(atual,res);}await dbPut('lotes',atual);}
+    else{allLotes.push(res);await dbPut('lotes',res);}
+  }
+  if(ent.acc&&JSON.stringify(accessList)===ent.acc.depois){
+    accessList=JSON.parse(ent.acc.antes);
+    try{localStorage.setItem('cadastroIR_accessList',JSON.stringify(accessList));}catch(e){}
+  }
+  refreshCurrentView();
+  _suppressUndoCapture=true;
+  let ok=false;
+  try{ok=await ghSave();}catch(e){ok=false;}
+  _suppressUndoCapture=false;
+  updateUndoButton();
+  showToast(ok?'↩️ Alteração desfeita e salva':'↩️ Desfeito e salvo localmente (GitHub indisponível)',ok?'success':'info');
+}
 async function _resyncDB(){
   // Sincroniza o IndexedDB local com o estado em memória (clientes keyPath=id, lotes keyPath=data).
-  // Necessário porque a persistência local é a fonte usada no reload quando o GitHub está indisponível.
   try{
     const dbClientes=await dbAll('clientes');
     const idsMem=new Set(allClients.map(c=>c.id));
@@ -1475,90 +1747,96 @@ async function _resyncDB(){
     const datasMem=new Set(allLotes.map(l=>l.data));
     for(const l of allLotes)await dbPut('lotes',l);
     for(const l of dbLotes)if(!datasMem.has(l.data))await dbDelete('lotes',l.data);
-  }catch(e){console.error('[undo] resyncDB falhou:',e);}
+  }catch(e){console.error('[sync] resyncDB falhou:',e);}
 }
-async function desfazer(){
-  if(getNivel()==='visualizar'){showToast('Sem permissão para editar','error');return;}
-  if(!_undoStack.length){showToast('Nada para desfazer','info');return;}
-  if(!confirm('Desfazer a última alteração salva?\n\nTodos os dados voltam ao estado imediatamente anterior à última gravação.'))return;
-  const prev=_undoStack.pop();
-  allClients=Array.isArray(prev.clientes)?prev.clientes:[];
-  allLotes=Array.isArray(prev.lotes)?prev.lotes:[];
-  if(Array.isArray(prev.access))accessList=prev.access;
-  refreshCurrentView();
-  // 1) Persiste LOCAL (IndexedDB) — é o que sobrevive ao reload mesmo sem GitHub
-  await _resyncDB();
-  try{localStorage.setItem('cadastroIR_accessList',JSON.stringify(accessList));}catch(e){}
-  // 2) Tenta gravar no GitHub (melhor esforço, igual a uma edição normal)
-  _suppressUndoCapture=true;
-  let ok=false;
-  try{ok=await ghSave();}catch(e){ok=false;}
-  _suppressUndoCapture=false;
-  _undoBaseline=_snapshotAtual();
-  updateUndoButton();
-  showToast(ok?'↩️ Alteração desfeita e salva':'↩️ Desfeito e salvo localmente (GitHub indisponível)',ok?'success':'info');
-}
-async function ghSave(){
+// ── GRAVAR ──
+function ghSave(){return _ghFila(_ghGravar);}
+async function _ghGravar(){
   const wToken=getWriteToken();
   if(!wToken||!ghCfg?.owner||!ghCfg?.repo){
     setSaveIndicator('error','Token não configurado — abra ⚙️ e preencha o token');
     return false;
   }
   if(getNivel()==='visualizar')return false;
+  if(!_ghBase)_ghBase={cli:new Map(),lot:new Map(),acc:'[]'};
+  const loc=_ghColetar();
+  const mud=_ghMudancas(loc,_ghBase);
+  if(!mud.n){setSaveIndicator('ok');return true;}   // nada mudou nesta aba
   setSaveIndicator('saving');
-  const data={clientes:allClients,lotes:allLotes,access:accessList};
-  const text=JSON.stringify(data,null,2);
-  const content=btoa(unescape(encodeURIComponent(text)));
   const url=`https://api.github.com/repos/${ghCfg.owner}/${ghCfg.repo}/contents/data.json`;
-  const body={message:`update ${new Date().toLocaleString('pt-BR')}`,content};
-  if(ghSHA)body.sha=ghSHA;
-  try{
-    const r=await fetch(url,{method:'PUT',
-      headers:{'Authorization':`token ${wToken}`,'Content-Type':'application/json'},
-      body:JSON.stringify(body)});
+  const falha=(msg,semConexao)=>{
+    _ghPendGuardar(mud);
+    setSaveIndicator('error',semConexao?'Sem conexão':msg);
+    showToast(semConexao?'⚠️ Sem conexão — dados salvos localmente':`⚠️ GitHub: ${msg} — dados salvos localmente`,'error');
+    return false;
+  };
+  for(let tent=1;tent<=5;tent++){
+    let rem;
+    // Se o GitHub ainda está na versão da base (ninguém gravou), nem baixa o conteúdo
+    try{rem=await _ghLerAtual(wToken,_ghBaseSha);}
+    catch(e){return falha(String(e&&e.message||e),e&&(e.name==='AbortError'||e.name==='TypeError'));}
+    const out=_ghJuntarTudo(_ghBase,loc,rem.data?_ghMapas(rem.data):_ghBase);
+    const data={clientes:[...out.cli.values()].map(s=>JSON.parse(s)),lotes:[...out.lot.values()].map(s=>JSON.parse(s)),access:JSON.parse(out.acc)};
+    const quem=getCurrentUserName()||'?';
+    const body={message:`update ${new Date().toLocaleString('pt-BR')} — ${quem} — ${mud.cli.length} cliente(s)`,content:_textoParaB64(JSON.stringify(data,null,2))};
+    if(rem.sha)body.sha=rem.sha;
+    let r;
+    try{
+      r=await fetch(url,{method:'PUT',headers:{'Authorization':`token ${wToken}`,'Content-Type':'application/json'},body:JSON.stringify(body)});
+    }catch(e){return falha('Sem conexão',true);}
     if(r.ok){
       const j=await r.json();
-      ghSHA=j.content.sha;
+      ghSHA=j.content.sha;_ghBaseSha=ghSHA;
       try{localStorage.setItem('cadastroIR_ghSHA',ghSHA);}catch(e){}
+      const baseAnt=_ghBase;
+      _ghBase={cli:out.cli,lot:out.lot,acc:out.acc};
+      const ap=await _ghAplicar(loc,out);
+      _ghRegistrarUndo(baseAnt,out,mud);
+      _ghPendLimpar(mud);
+      if(ap.n)_ghAposPuxar(ap);
       setSaveIndicator('ok');
-      _captureUndoAfterSave();
       return true;
-    }else{
-      let errMsg=`HTTP ${r.status}`;
-      try{const ej=await r.json();errMsg=ej.message||errMsg;}catch(e2){}
-      setSaveIndicator('error',errMsg);
-      showToast(`⚠️ GitHub: ${errMsg}`,'error');
-      if(r.status===409||r.status===422){
-        // SHA conflitante — atualiza SHA e tenta novamente automaticamente
-        try{
-          const rf=await fetch(url,{headers:{'Authorization':`token ${wToken}`,'Accept':'application/vnd.github.v3+json'},cache:'no-store'});
-          if(rf.ok){
-            const rj=await rf.json();
-            ghSHA=rj.sha;
-            try{localStorage.setItem('cadastroIR_ghSHA',ghSHA);}catch(e){}
-            // Retry com SHA atualizado
-            body.sha=ghSHA;
-            const r2=await fetch(url,{method:'PUT',
-              headers:{'Authorization':`token ${wToken}`,'Content-Type':'application/json'},
-              body:JSON.stringify(body)});
-            if(r2.ok){
-              const j2=await r2.json();
-              ghSHA=j2.content.sha;
-              try{localStorage.setItem('cadastroIR_ghSHA',ghSHA);}catch(e){}
-              setSaveIndicator('ok');
-              _captureUndoAfterSave();
-              return true;
-            }
-          }
-        }catch(e3){}
-      }
-      return false;
     }
-  }catch(e){
-    setSaveIndicator('error','Sem conexão');
-    showToast('⚠️ Sem conexão — dados salvos localmente','error');
-    return false;
+    if(r.status===409||r.status===422){
+      console.log(`[sync] conflito (${r.status}) — outra aba/pessoa gravou no meio; relendo e juntando de novo (${tent}/5)`);
+      continue;
+    }
+    let errMsg=`HTTP ${r.status}`;
+    try{const ej=await r.json();errMsg=ej.message||errMsg;}catch(e2){}
+    return falha(errMsg,false);
   }
+  return falha('conflito de gravação persistente — tente de novo',false);
+}
+// ── PUXAR: traz para esta aba o que outras abas/pessoas gravaram ──
+function ghPuxar(){return _ghFila(_ghPuxarReal);}
+async function _ghPuxarReal(){
+  const tok=ghCfg?.token||ghCfg?.writeToken||ghCfg?.readToken||null;
+  if(!tok||!ghCfg?.owner||!ghCfg?.repo||!_ghBase)return false;
+  _ghUltPuxada=Date.now();
+  let rem;
+  try{rem=await _ghLerAtual(tok,_ghBaseSha);}catch(e){return false;}
+  if(!rem.data)return true;   // nada novo no GitHub
+  const loc=_ghColetar();
+  const remM=_ghMapas(rem.data);
+  const out=_ghJuntarTudo(_ghBase,loc,remM);
+  if(_ghBase.acc==='__pendente__')remM.acc='__pendente__';
+  _ghBase=remM;               // o que esta aba mudou e ainda não gravou continua como alteração pendente
+  _ghBaseSha=rem.sha;ghSHA=rem.sha;
+  try{localStorage.setItem('cadastroIR_ghSHA',ghSHA);}catch(e){}
+  const ap=await _ghAplicar(loc,out);
+  if(ap.n){console.log(`[sync] ${ap.n} registro(s) atualizados com o que foi gravado em outra aba/computador`);_ghAposPuxar(ap);}
+  return true;
+}
+function _ghPuxarAuto(){if(_ghModalAberto())return;_ghUltPuxada=Date.now();ghPuxar();}
+function _ghIniciarSync(){
+  document.addEventListener('visibilitychange',()=>{
+    if(document.visibilityState==='visible'&&Date.now()-_ghUltPuxada>20000)_ghPuxarAuto();
+  });
+  // aba visível: a cada ~90 s; aba em segundo plano: a cada ~5 min
+  setInterval(()=>{
+    const lim=document.visibilityState==='visible'?85000:295000;
+    if(Date.now()-_ghUltPuxada>lim)_ghPuxarAuto();
+  },30000);
 }
 // Config modal controls
 function openGHConfig(){
@@ -1870,12 +2148,17 @@ async function init(){
   await openDB();
   // Tenta carregar do GitHub (fonte autoritativa, vista por todos)
   const ghData=await ghFetch();
+  let _pendInit=false;
   if(ghData){
     allClients=ghData.clientes||[];
     allLotes=ghData.lotes||[];
-    // Sincroniza cache local
-    for(const c of allClients)await dbPut('clientes',c);
-    for(const l of allLotes)await dbPut('lotes',l);
+    // Base da junção = exatamente o que veio do GitHub (antes de normalizações/migrações)
+    _ghBase=_ghMapas({clientes:allClients,lotes:allLotes,access:Array.isArray(ghData.access)?ghData.access:[]});
+    _ghBaseSha=null; // conteúdo pode ter vindo do raw (cache): a 1ª atualização relê pela API
+    // Alterações desta máquina que não chegaram ao GitHub (sem conexão) voltam por cima
+    try{_pendInit=await _ghPendReaplicar();}catch(e){console.warn('[sync] pendências:',e);}
+    // Sincroniza cache local = espelho do GitHub (+ pendências), removendo o que não existe mais
+    await _resyncDB();
     // Se GitHub não tem access, usa backup local
     if(!Array.isArray(ghData.access)||ghData.access.length===0){
       try{const lb=JSON.parse(localStorage.getItem('cadastroIR_accessList')||'[]');if(Array.isArray(lb)&&lb.length>0)accessList=lb;}catch(e){}
@@ -1887,6 +2170,11 @@ async function init(){
     allLotes=await dbAll('lotes');
     // Tenta recuperar lista de usuários do backup local
     try{const lb=JSON.parse(localStorage.getItem('cadastroIR_accessList')||'[]');if(Array.isArray(lb))accessList=lb;}catch(e){}
+    // Base = cópia local carregada (pode estar antiga): ao gravar, só o que esta aba mudar
+    // é aplicado sobre a versão atual do GitHub — a cópia antiga nunca vai inteira.
+    _ghBase=_ghMapas({clientes:allClients,lotes:allLotes,access:accessList});
+    _ghBaseSha=null;
+    _ghPendAjustarBase();
   }
   // ── Valida sessão contra lista de acesso carregada ──
   if(currentUser&&currentUser!=='admin'){
@@ -2204,8 +2492,9 @@ async function init(){
     console.log(`[mig] Padronização status e-CAC: ${_sCnt} clientes atualizados`);
   }
   // ── FIM MIGRAÇÃO ──
-  // Baseline do "Desfazer": estado carregado, para que a 1ª alteração da sessão seja reversível
-  _undoBaseline=_snapshotAtual();
+  // Sincronização com o GitHub: puxa o que outras abas/pessoas gravarem; regrava pendências
+  _ghIniciarSync();
+  setTimeout(()=>{_ghPuxarAuto();if(_pendInit)ghSave();},2500);
   filteredClients=[...allClients];
   applyReadOnlyUI(); // re-aplica após carregar accessList
   // Exige login antes de renderizar qualquer dado
@@ -4816,7 +5105,7 @@ async function ecacAtualizarLegados(resultados){
       if(_ecacGravarStatus(c,ano,alvo.v,'Consulta e-CAC (automático)')){mud.add(c);n++;}
     }
   }
-  if(mud.size){for(const c of mud)await dbPut('clientes',c);allClients=await dbAll('clientes');allClients.sort((a,b)=>(a.nome||'').localeCompare(b.nome||'','pt-BR'));filterClients();renderFilterChips();renderSidebarStats();ghSave();}
+  if(mud.size){for(const c of mud)await dbPut('clientes',c);allClients.sort((a,b)=>(a.nome||'').localeCompare(b.nome||'','pt-BR'));filterClients();renderFilterChips();renderSidebarStats();ghSave();}
   return n;
 }
 async function ecacAtualizarSelecionados(){
@@ -4830,8 +5119,7 @@ async function ecacAtualizarSelecionados(){
     if(_ecacGravarStatus(c,el.dataset.ano,el.dataset.padrao,getCurrentUserName())){mud.add(c);n++;}
   }
   for(const c of mud)await dbPut('clientes',c);
-  allClients=await dbAll('clientes');
-  allClients.sort((a,b)=>(a.nome||'').localeCompare(b.nome||'','pt-BR'));
+    allClients.sort((a,b)=>(a.nome||'').localeCompare(b.nome||'','pt-BR'));
   filterClients();renderFilterChips();renderSidebarStats();
   ghSave();
   showToast(`🔄 ${n} exercício(s) atualizados com o status do e-CAC`,'success');
@@ -4847,8 +5135,7 @@ async function applyEcacMarks(){
     for(const dv of m.divs){if(!c.exAtencao[dv.ano]){c.exAtencao[dv.ano]=true;changed=true;nE++;}}
     if(changed){await dbPut('clientes',c);nC++;}
   }
-  allClients=await dbAll('clientes');
-  allClients.sort((a,b)=>(a.nome||'').localeCompare(b.nome||'','pt-BR'));
+    allClients.sort((a,b)=>(a.nome||'').localeCompare(b.nome||'','pt-BR'));
   filterClients();renderFilterChips();renderSidebarStats();
   ghSave();
   showToast(`✅ ${nE} exercício(s) marcados em ${nC} cliente(s)`,'success');
@@ -5084,35 +5371,47 @@ async function ecacStatusOnce(){
     const b=document.getElementById('ecac-btn-pausar'); if(b){b.textContent='⏸ Pausar';b.dataset.paused='';}
     const parciais=Array.isArray(js.resultados)?js.resultados:[];
     const procs=Array.isArray(js.processos)?js.processos:[];
-    if(procs.length){
-      // grava no cadastro uma única vez por consulta (o status pode ser relido ao reabrir a tela)
-      const jobKey=(js.gerado_em||'')+'|'+procs.length;
-      let ja=''; try{ja=localStorage.getItem('cadastroIR_eprocJob')||'';}catch(e){}
-      if(ja!==jobKey){
-        const a=await eprocAplicar(procs);
-        try{localStorage.setItem('cadastroIR_eprocJob',jobKey);}catch(e){}
-        showToast(`📂 Processos: ${a.nL} cliente(s) atualizados · 🔔 ${a.nN} novidade(s)${a.nF?` · ⚠️ ${a.nF} falha(s)`:''} — veja em Processos e-CAC`,a.nN?'success':'success');
-      }
-      const bp=document.getElementById('ecac-btn-procs'); if(bp)bp.style.display='inline-flex';
+    // Aplicação dos resultados no cadastro: UMA vez por consulta, mesmo que o polling
+    // (a cada 1 s) ou outra aba do mesmo navegador chegue aqui ao mesmo tempo.
+    const _fimK=(js.gerado_em||'')+'|'+parciais.length+'|'+procs.length;
+    if(!window._ecacFimP||window._ecacFimK!==_fimK){
+      window._ecacFimK=_fimK;
+      window._ecacFimP=(async()=>{
+        // Esta aba pode estar aberta há horas: traz antes o que foi gravado em outras abas/computadores
+        try{await ghPuxar();}catch(e){}
+        const _reivindicar=(chave,k)=>{let ja='';try{ja=localStorage.getItem(chave)||'';}catch(e){}if(ja===k)return false;try{localStorage.setItem(chave,k);}catch(e){}return true;};
+        const _soltar=chave=>{try{localStorage.removeItem(chave);}catch(e){}};
+        if(procs.length){
+          const jobKey=(js.gerado_em||'')+'|'+procs.length;
+          if(_reivindicar('cadastroIR_eprocJob',jobKey)){
+            try{
+              const a=await eprocAplicar(procs);
+              showToast(`📂 Processos: ${a.nL} cliente(s) atualizados · 🔔 ${a.nN} novidade(s)${a.nF?` · ⚠️ ${a.nF} falha(s)`:''} — veja em Processos e-CAC`,'success');
+            }catch(e){_soltar('cadastroIR_eprocJob');console.error('[ecac] eprocAplicar:',e);}
+          }
+        }
+        if(parciais.length){
+          const k3=(js.gerado_em||'')+'|'+parciais.length;
+          if(_reivindicar('cadastroIR_stJob',k3)){
+            try{
+              const n=await ecacAtualizarLegados(parciais);
+              if(n)showToast(`🔄 ${n} exercício(s) de status antigo (Em Malha/Impugnação) atualizados pelo e-CAC`,'success');
+            }catch(e){_soltar('cadastroIR_stJob');console.error('[ecac] atualizar legados:',e);}
+          }
+        }
+        if(parciais.some(r=>r&&r.mir)){
+          const k2=(js.gerado_em||'')+'|'+parciais.length;
+          if(_reivindicar('cadastroIR_mirJob',k2)){
+            try{
+              const a=await mirAplicar(parciais);
+              if(a.nAv)showToast(`📢 ${a.nAv} aviso(s) novo(s) no Meu Imposto de Renda — veja em Processos e-CAC`,'success');
+            }catch(e){_soltar('cadastroIR_mirJob');console.error('[ecac] mirAplicar:',e);}
+          }
+        }
+      })();
     }
-    if(parciais.length){
-      const k3=(js.gerado_em||'')+'|'+parciais.length;
-      let ja3=''; try{ja3=localStorage.getItem('cadastroIR_stJob')||'';}catch(e){}
-      if(ja3!==k3){
-        const n=await ecacAtualizarLegados(parciais);
-        try{localStorage.setItem('cadastroIR_stJob',k3);}catch(e){}
-        if(n)showToast(`🔄 ${n} exercício(s) de status antigo (Em Malha/Impugnação) atualizados pelo e-CAC`,'success');
-      }
-    }
-    if(parciais.some(r=>r&&r.mir)){
-      const k2=(js.gerado_em||'')+'|'+parciais.length;
-      let ja2=''; try{ja2=localStorage.getItem('cadastroIR_mirJob')||'';}catch(e){}
-      if(ja2!==k2){
-        const a=await mirAplicar(parciais);
-        try{localStorage.setItem('cadastroIR_mirJob',k2);}catch(e){}
-        if(a.nAv)showToast(`📢 ${a.nAv} aviso(s) novo(s) no Meu Imposto de Renda — veja em Processos e-CAC`,'success');
-      }
-    }
+    await window._ecacFimP;
+    if(procs.length){const bp=document.getElementById('ecac-btn-procs'); if(bp)bp.style.display='inline-flex';}
     if(js.estado==='erro'){
       // A verificação parou no meio (ex.: internet caiu). Não perde o que já foi lido:
       // mostra os parciais e deixa preenchido o cliente por onde recomeçar.
@@ -5285,8 +5584,7 @@ function renderProcessosLista(){
 }
 async function _eprocGravar(mudados){
   for(const c of mudados)await dbPut('clientes',c);
-  allClients=await dbAll('clientes');
-  allClients.sort((a,b)=>(a.nome||'').localeCompare(b.nome||'','pt-BR'));
+    allClients.sort((a,b)=>(a.nome||'').localeCompare(b.nome||'','pt-BR'));
   if(typeof renderNavCounts==='function')renderNavCounts();
   ghSave();
 }
