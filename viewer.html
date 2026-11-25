@@ -5057,7 +5057,7 @@ function _eprocFiltrados(){
     return (a.nome||'').localeCompare(b.nome||'','pt-BR');
   });
 }
-const _EPROC_TIPO_NOV={DOC_MIR:'📑',AVISO_MIR:'📢',DOCUMENTO:'📄',LOCALIZACAO:'📍',SITUACAO:'🔄',PROCESSO_NOVO:'🆕',SAIU_DOS_ATIVOS:'📦',INATIVO_NOVO:'🗄️'};
+const _EPROC_TIPO_NOV={CAIXA_RESTITUICAO:'💰',CAIXA:'📬',DOC_MIR:'📑',AVISO_MIR:'📢',DOCUMENTO:'📄',LOCALIZACAO:'📍',SITUACAO:'🔄',PROCESSO_NOVO:'🆕',SAIU_DOS_ATIVOS:'📦',INATIVO_NOVO:'🗄️'};
 function renderProcessosLista(){
   const el=document.getElementById('eproc-lista'); if(!el)return;
   const I=EPROC_FILTROS[eprocFiltro], lista=_eprocFiltrados();
@@ -5307,6 +5307,43 @@ async function mirAplicar(resultados){
   if(mudados.length)await _eprocGravar(mudados);
   if(typeof currentView!=='undefined'&&currentView==='processos')renderProcessos();
   return {n:mudados.length,nAv};
+}
+
+// ── 📬 CAIXA POSTAL do e-CAC (nov/2026) ──────────────────────────────────────
+// A Consulta e-CAC lê SÓ A LISTA da Caixa Postal (nunca abre mensagem) e devolve
+// em r.caixa as mensagens importantes ("!") e os avisos de pagamento de
+// restituição dos últimos 30 dias. Mensagem que ainda não tinha sido vista vira
+// novidade em "📂 Processos e-CAC" (💰 restituição / 📬 importante; some com o
+// ✔ Visto). c.caixa = {lidoEm, vistos:[isn…], naoLidas}. Idempotente por "lidoEm".
+function _cxData(iso){const m=String(iso||'').match(/^(\d{4})-(\d{2})-(\d{2})/);return m?`${m[3]}/${m[2]}/${m[1]}`:String(iso||'');}
+async function caixaAplicar(lista){
+  const mudados=[]; let nRest=0, nImp=0;
+  for(const r of (lista||[])){
+    if(!r||!r.caixa)continue;
+    const cpf=r.cpf_digits||_digits(r.cpf);
+    const c=allClients.find(x=>_digits(x.cpfCnpj)===cpf); if(!c)continue;
+    if(c.caixa&&c.caixa.lidoEm===r.caixa.lidoEm)continue;
+    const vistos=new Set((c.caixa?.vistos||[]).map(String));
+    const msgs=r.caixa.mensagens||[];
+    const novas=msgs.filter(m=>!vistos.has(String(m.isn)));
+    // só as do período lido podem voltar a aparecer: guarda essas
+    c.caixa={lidoEm:r.caixa.lidoEm,vistos:msgs.map(m=>String(m.isn)),naoLidas:r.caixa.naoLidas??null};
+    if(novas.length){
+      if(!c.eproc)c.eproc={pendentes:[]};
+      if(!c.eproc.pendentes)c.eproc.pendentes=[];
+      novas.forEach(m=>{
+        const rest=!!m.restituicao;
+        c.eproc.pendentes.push({tipo:rest?'CAIXA_RESTITUICAO':'CAIXA',processo:'Caixa Postal',
+          texto:`${m.assunto||'(sem assunto)'} — enviada em ${_cxData(m.dataEnvio)}${m.lida?(m.dataLeitura?' · lida em '+_cxData(m.dataLeitura):' · lida'):' · NÃO LIDA'}`,
+          detectadoEm:r.caixa.lidoEm});
+        if(rest)nRest++;else nImp++;
+      });
+    }
+    mudados.push(c);
+  }
+  if(mudados.length)await _eprocGravar(mudados);
+  if(typeof currentView!=='undefined'&&currentView==='processos')renderProcessos();
+  return {n:mudados.length,nRest,nImp};
 }
 
 // ── QUICK EDIT ────────────────────────────────────────────────────────────────
