@@ -3205,6 +3205,8 @@ function toggleLoteDoenca(){
   renderLotes();
 }
 
+// Clientes de um lote em ordem alfabética (só na exibição/impressão — a ordem gravada não muda)
+function _lotePagsOrdenados(pags){return (pags||[]).slice().sort((a,b)=>String(a.nome||'').localeCompare(String(b.nome||''),'pt-BR',{sensitivity:'base'})||String(a.cpfCnpj||'').localeCompare(String(b.cpfCnpj||'')));}
 function renderLotes(){
   // Mapa CPF → doencaGrave
   const dgMap={};
@@ -3242,7 +3244,7 @@ function renderLotes(){
         <table class="lote-table">
           <thead><tr><th>CPF/CNPJ</th><th>Nome</th><th>Exercícios</th><th style="text-align:right">Total</th><th></th></tr></thead>
           <tbody>
-            ${pags.map((p,pi)=>{
+            ${_lotePagsOrdenados(pags).map((p,pi)=>{
               const exStr=Object.entries(p.porExercicio||{}).sort((a,b)=>b[0]-a[0]).map(([yr,v])=>`${yr}: ${fmtBRL(v)}`).join(' · ');
               const tot=p.total||Object.values(p.porExercicio||{}).reduce((a,b)=>a+b,0);
               const podeEditar=canEditExercicios()&&!lotesFiltroDG;
@@ -5008,7 +5010,7 @@ const EPROC_FILTROS={
   recentes:{icon:'🗓️',label:'Juntada ≤ 30 dias',cor:'#2563eb',desc:'Processos com documento juntado nos últimos 30 dias'},
   ativos:{icon:'⚖️',label:'Com processo ativo',cor:'#7c3aed',desc:'Todos os clientes com processo ativo no e-Processo'},
   avisos:{icon:'📢',label:'Aviso não verificado',cor:'#dc2626',desc:'Clientes com aviso do Meu Imposto de Renda (ex.: e-edital) ainda não marcado ✔ Ciente. Os já verificados ficam em "Todos os lidos".'},
-  falhas:{icon:'⚠️',label:'Falha na leitura',cor:'#b45309',desc:'A última tentativa de leitura falhou ou parou em mensagem importante'},
+  falhas:{icon:'⚠️',label:'Falha na leitura',cor:'#b45309',desc:'A última tentativa de leitura falhou ou parou em mensagem importante. Use ✔ Ciente da falha para tirar da lista quem você já conferiu (volta se a falha mudar).'},
   lidos:{icon:'📂',label:'Todos os lidos',cor:'#64748b',desc:'Todos os clientes que já tiveram os processos lidos'}
 };
 function _eprocData(s){const m=String(s||'').match(/(\d{2})\/(\d{2})\/(\d{4})(?:\s+(\d{2}):(\d{2}))?/);return m?new Date(+m[3],+m[2]-1,+m[1],+(m[4]||0),+(m[5]||0)):null;}
@@ -5016,6 +5018,9 @@ function _eprocUltJunt(c){let mx=null;for(const p of (c.eproc?.retrato?.ativos||
 function _eprocRecente(p,dias){const d=_eprocData(p.ultimaJuntada);return d&&(Date.now()-d.getTime())<=dias*864e5;}
 function _eprocPend(c){return (c.eproc?.pendentes||[]).length;}
 function _eprocAtivos(c){return (c.eproc?.retrato?.ativos||[]);}
+// Falha "ciente": o escritório já tomou conhecimento desta falha → sai da lista ⚠️ Falha na leitura.
+// Vale enquanto o texto da falha for o mesmo; falha diferente ou leitura bem-sucedida desfaz.
+function _eprocFalhaCiente(c){const e=c.eproc;return !!(e&&e.falha&&e.falhaCiente&&e.falhaCiente.texto===e.falha);}
 function _eprocPodeEditar(){return typeof canEditExercicios!=='function'||canEditExercicios();}
 function eprocContaNovidades(){return allClients.filter(c=>_eprocPend(c)>0).length;}
 function eprocSetFiltro(f){eprocFiltro=f;renderProcessos();}
@@ -5025,7 +5030,7 @@ function _eprocBase(f){
   if(f==='avisos')return lidos.filter(c=>mirPendentesCiencia(c)>0);
   if(f==='recentes')return lidos.filter(c=>_eprocAtivos(c).some(p=>_eprocRecente(p,30)));
   if(f==='ativos')return lidos.filter(c=>_eprocAtivos(c).length>0);
-  if(f==='falhas')return lidos.filter(c=>!!c.eproc.falha);
+  if(f==='falhas')return lidos.filter(c=>!!c.eproc?.falha&&!_eprocFalhaCiente(c));
   return lidos;
 }
 function renderProcessos(){
@@ -5065,13 +5070,13 @@ function renderProcessosLista(){
   if(!lista.length){el.innerHTML=`<div class="empty-state"><div class="empty-icon">${I.icon}</div><div style="margin-top:8px">Nenhum cliente nesta faixa</div></div>`;return;}
   const pode=_eprocPodeEditar();
   const nPend=lista.filter(c=>_eprocPend(c)>0).length;
-  el.innerHTML=`<div style="display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--text3);margin:0 2px 9px">${lista.length} cliente${lista.length!==1?'s':''} · ${I.icon} ${I.label}${pode&&nPend>1&&eprocFiltro==='novidades'?`<button class="btn btn-ghost btn-sm" style="margin-left:auto" onclick="eprocVistoTodos()">✔ Marcar os ${nPend} como vistos</button>`:''}</div>`+
+  el.innerHTML=`<div style="display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--text3);margin:0 2px 9px">${lista.length} cliente${lista.length!==1?'s':''} · ${I.icon} ${I.label}${pode&&nPend>1&&eprocFiltro==='novidades'?`<button class="btn btn-ghost btn-sm" style="margin-left:auto" onclick="eprocVistoTodos()">✔ Marcar os ${nPend} como vistos</button>`:''}${pode&&lista.length>1&&eprocFiltro==='falhas'?`<button class="btn btn-ghost btn-sm" style="margin-left:auto;color:#b45309" onclick="eprocFalhaCienteTodos()">✔ Ciente das ${lista.length} falhas</button>`:''}</div>`+
   lista.map(c=>{
     const e=c.eproc||{}, pend=e.pendentes||[], ativos=_eprocAtivos(c), inat=e.retrato?.inativos||[];
-    const comPend=new Set(pend.map(n=>n.processo));
-    const cor=pend.length?'#d97706':(e.falha?'#dc2626':'#7c3aed');
+    const comPend=new Set(pend.map(n=>n.processo)), fc=_eprocFalhaCiente(c);
+    const cor=pend.length?'#d97706':(e.falha&&!fc?'#dc2626':'#7c3aed');
     const nov=pend.length?`<div style="padding:10px 16px;background:#d9770610;border-bottom:1px solid var(--border);display:flex;flex-direction:column;gap:4px">${pend.map(n=>`<div style="font-size:12.5px;color:var(--text)"><span style="margin-right:6px">${_EPROC_TIPO_NOV[n.tipo]||'🔔'}</span><span style="font-family:'DM Mono',monospace;font-size:11.5px;color:var(--text2)">${esc(n.processo||'')}</span> — ${esc(n.texto||'')}${n.detectadoEm?` <span style="font-size:11px;color:var(--text3)">(lido em ${esc(String(n.detectadoEm).slice(0,10))})</span>`:''}</div>`).join('')}</div>`:'';
-    const falha=e.falha?`<div style="padding:8px 16px;font-size:12px;color:#dc2626;border-bottom:1px solid var(--border)">${esc(e.falha)}${e.falhaEm?` <span style="color:var(--text3)">(última: ${esc(e.falhaEm)}${e.falhaDesde&&String(e.falhaDesde).slice(0,10)!==String(e.falhaEm).slice(0,10)?` · desde ${esc(String(e.falhaDesde).slice(0,10))}`:''})</span>`:''}${e.retrato?` <span style="color:var(--text3)">— processos abaixo são da leitura anterior${e.lidoEm?' ('+esc(String(e.lidoEm).slice(0,10))+')':''}</span>`:''}</div>`:'';
+    const falha=e.falha?`<div style="padding:8px 16px;font-size:12px;color:#dc2626;border-bottom:1px solid var(--border)">${esc(e.falha)}${e.falhaEm?` <span style="color:var(--text3)">(última: ${esc(e.falhaEm)}${e.falhaDesde&&String(e.falhaDesde).slice(0,10)!==String(e.falhaEm).slice(0,10)?` · desde ${esc(String(e.falhaDesde).slice(0,10))}`:''})</span>`:''}${e.retrato?` <span style="color:var(--text3)">— processos abaixo são da leitura anterior${e.lidoEm?' ('+esc(String(e.lidoEm).slice(0,10))+')':''}</span>`:''}${fc?` <span style="color:#16a34a;font-weight:600">· ✔ ciente${e.falhaCiente.em?' em '+esc(e.falhaCiente.em):''}</span>${pode?` <a href="#" style="font-size:11px;color:var(--text3)" onclick="event.preventDefault();event.stopPropagation();eprocFalhaCiente('${c.id}',false)" title="Voltar este cliente para a lista Falha na leitura">desfazer</a>`:''}`:''}</div>`:'';
     const linhas=ativos.map(p=>{
       const rec=_eprocRecente(p,30), hl=comPend.has(p.numeroFormatado);
       return`<div class="ex-item" style="grid-template-columns:170px 1.3fr 1fr 70px 1.6fr;${hl?'border-color:#d97706;background:#d977060d':''}">
@@ -5089,6 +5094,7 @@ function renderProcessosLista(){
           <div class="malha-doc">${esc(c.cpfCnpj||'—')} · ${e.retrato?ativos.length+' processo(s) ativo(s)':'processos não lidos'}${e.lidoEm?` · lido em ${esc(e.lidoEm)}`:''}${e.vistoEm?` · visto em ${esc(e.vistoEm)}`:''}</div>
         </div>
         ${pend.length?`<span style="margin-left:8px;flex-shrink:0;background:#d977061a;color:#d97706;border:1px solid #d9770644;border-radius:5px;padding:2px 8px;font-size:10.5px;font-weight:700;white-space:nowrap">🔔 ${pend.length} novidade(s)</span>`:''}
+        ${e.falha&&!fc&&pode?`<button class="btn btn-ghost btn-sm" style="margin-left:8px;flex-shrink:0;color:#b45309;border-color:#b4530966" onclick="event.stopPropagation();eprocFalhaCiente('${c.id}',true)" title="Já tomei conhecimento desta falha — tirar o cliente da lista Falha na leitura">✔ Ciente da falha</button>`:''}
         ${pend.length&&pode?`<button class="btn btn-primary btn-sm" style="margin-left:8px;flex-shrink:0" onclick="event.stopPropagation();eprocVisto('${c.id}')">✔ Visto</button>`:''}
         <button class="btn btn-ghost btn-sm" style="margin-left:4px;flex-shrink:0;color:var(--text3);font-size:11px" onclick="event.stopPropagation();openDetail('${c.id}')" title="Ver cadastro completo">👤 Ver</button>
       </div>
@@ -5122,6 +5128,24 @@ async function eprocVistoTodos(){
 }
 // Recebe o resultado do servidor (js.processos) e grava no cadastro.
 // Idempotente: um cliente cujo retrato já tem o mesmo "lidoEm" não é reaplicado.
+async function eprocFalhaCiente(id,on){
+  if(!_eprocPodeEditar()){showToast('Sem permissão para editar.','error');return;}
+  const c=allClients.find(x=>x.id===id); if(!c||!c.eproc||!c.eproc.falha)return;
+  if(on)c.eproc.falhaCiente={texto:c.eproc.falha,em:new Date().toLocaleString('pt-BR')};
+  else delete c.eproc.falhaCiente;
+  await _eprocGravar([c]); renderProcessos();
+  const quem=(c.nome||'')+(c.cpfCnpj?' ('+c.cpfCnpj+')':'');
+  showToast(on?'✔ '+quem+' saiu da lista Falha na leitura':'⚠️ '+quem+' voltou para a lista Falha na leitura','success');
+}
+async function eprocFalhaCienteTodos(){
+  if(!_eprocPodeEditar()){showToast('Sem permissão para editar.','error');return;}
+  const l=_eprocFiltrados().filter(c=>c.eproc?.falha&&!_eprocFalhaCiente(c));
+  if(!l.length||!confirm('Marcar como ciente a falha de '+l.length+' cliente(s)? Eles saem da lista Falha na leitura (voltam se a falha mudar).'))return;
+  const agora=new Date().toLocaleString('pt-BR');
+  l.forEach(c=>{c.eproc.falhaCiente={texto:c.eproc.falha,em:agora};});
+  await _eprocGravar(l); renderProcessos();
+  showToast('✔ '+l.length+' falha(s) marcadas como cientes','success');
+}
 async function eprocAplicar(lista){
   const chave=n=>[n.tipo,n.processo,n.doc||'',n.texto].join('|');
   const mudados=[]; let nN=0, nL=0, nF=0;
@@ -5142,7 +5166,7 @@ async function eprocAplicar(lista){
         if(!r.falhaEm||e.falhaEm===r.falhaEm)continue;
         c.eproc=Object.assign({},e,{falhaEm:quando,falhaDesde:e.falhaDesde||e.falhaEm||quando});
       }else{
-        c.eproc=Object.assign({},e,{falha:r.obs||'falha',falhaEm:quando,falhaDesde:quando});
+        c.eproc=Object.assign({},e,{falha:r.obs||'falha',falhaEm:quando,falhaDesde:quando,falhaCiente:null});
       }
       nF++;
     }
@@ -6069,7 +6093,7 @@ function imprimirLoteUnico(idx){
   if(!pags.length){showToast('Nenhum cliente com Doença Grave neste lote','error');return;}
   const totalGeral=pags.reduce((s,p)=>s+(p.total||Object.values(p.porExercicio||{}).reduce((a,b)=>a+b,0)),0);
   const dataGer=new Date().toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
-  const linhas=pags.map(p=>{
+  const linhas=_lotePagsOrdenados(pags).map(p=>{
     const exStr=Object.entries(p.porExercicio||{}).sort((a,b)=>b[0]-a[0]).map(([yr,v])=>`${yr}: ${fmtBRL(v)}`).join(' &nbsp;·&nbsp; ');
     const tot=p.total||Object.values(p.porExercicio||{}).reduce((a,b)=>a+b,0);
     return`<tr><td style="font-family:monospace;font-size:10pt">${p.cpfCnpj}</td><td>${p.nome}</td><td style="font-size:10pt;color:#555">${exStr||'—'}</td><td style="text-align:right;font-family:monospace;font-weight:600;color:#16a34a">${fmtBRL(tot)}</td></tr>`;
